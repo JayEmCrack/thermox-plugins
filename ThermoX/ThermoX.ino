@@ -7,7 +7,7 @@
    - User sets target 20..50 C in 1 C steps with two buttons (B1 = down, B2 = up)
    - DS18B20 measures water temp; BTS7960 drives one TEC1-12706 in either direction
    - Below target - hysteresis -> HEAT ; above target + hysteresis -> COOL ; else IDLE
-   - Fan: full duty in COOL, ~50 % in HEAT, off when idle (after a short run-on)
+   - Fan: full duty in COOL, ~50 % in HEAT, off when idle (only the OLED stays on)
    - SH1107 128x128 OLED shows water temp, target, mode, fan RPM, battery
 */
 #include <Arduino.h>
@@ -48,7 +48,7 @@ constexpr uint8_t TEC_MAX_DUTY = 255;        // lower to limit current/battery d
 constexpr uint8_t TEC_MIN_DUTY = 90;         // below this the TEC does little useful work
 constexpr bool    HEAT_ON_RPWM = true;       // swap if your wiring heats on LPWM instead
 constexpr uint32_t DEADTIME_MS = 1000;       // pause when reversing current direction
-constexpr uint32_t FAN_RUNON_MS = 30000;     // keep fan running after TEC stops
+constexpr uint32_t FAN_RUNON_MS = 0;         // fan run-on after TEC stops; 0 = fan off immediately
 constexpr uint32_t SENSOR_FAIL_MS = 5000;
 constexpr uint32_t FAN_STALL_GRACE_MS = 5000;
 constexpr uint16_t FAN_MIN_RPM = 500;        // below this while commanded => stall
