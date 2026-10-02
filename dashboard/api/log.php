@@ -4,13 +4,11 @@ require __DIR__ . '/../db.php';
 
 // Receives one ThermoX line from the receiver, e.g.
 //   TEMP=28.4,TARGET=18.0,MODE=COOLING,PELTIER=1,FAN=1,BATTERY=12.1
-// sent as the raw text/plain POST body with an X-API-Key header.
+// sent as the raw text/plain POST body with an X-API-Key header
+// (by the dashboard's Bluetooth connection, or by receiver/receiver.py).
 require_method('POST');
 
-$key = (string)($config['api_key'] ?? '');
-if ($key === '' || !hash_equals($key, (string)($_SERVER['HTTP_X_API_KEY'] ?? ''))) {
-    json_out(['error' => 'Invalid or missing API key.'], 401);
-}
+require_key();
 
 $line = trim(file_get_contents('php://input', false, null, 0, 300));
 if ($line === '' || strlen($line) > 200) {

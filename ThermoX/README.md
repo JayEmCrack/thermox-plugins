@@ -30,10 +30,14 @@ Libraries: OneWire, DallasTemperature, U8g2.
 ## Bluetooth logging to MySQL (experiments)
 
 ```
-ThermoX ESP32 --Bluetooth--> receiver/receiver.py (PC) --HTTP--> dashboard/api/log.php --> MySQL "thermox" --> dashboard/index.html
+ThermoX ESP32 --Bluetooth--> dashboard page in Chrome/Edge (Web Serial) --HTTPS--> api/log.php --> cloud MySQL --> same page
 ```
 
-Folders: `ThermoX/` firmware, `database/schema.sql`, `dashboard/` (PHP API + HTML page), `receiver/` (Bluetooth-to-HTTP bridge).
+Everything runs on a free PHP + MySQL web host, so **nothing has to be installed** on the PC. The files only need to be
+uploaded to the host. The Bluetooth bridge is built into the dashboard page (Chrome or Edge on a computer).
+
+Folders: `ThermoX/` firmware, `database/schema.sql`, `dashboard/` (PHP API + HTML page),
+`receiver/` (optional Python bridge, only for computers without Chrome/Edge).
 The ESP32 pin assignments are unchanged.
 
 ### 1. Firmware output
@@ -55,61 +59,69 @@ TEMP=28.40,TARGET=22.0,MODE=COOLING,PELTIER=1,FAN=1
 Nothing is sent until the DS18B20 gives a valid reading. If the sketch reports "too big", choose
 Tools → Partition Scheme → **Huge APP** (Classic Bluetooth uses a lot of flash).
 
-### 2. Database setup (MySQL / MariaDB)
-Easiest on a Windows PC: install **XAMPP**, start *Apache* and *MySQL*, then:
-1. Open http://localhost/phpmyadmin → **Import** → choose `database/schema.sql` → Go. This creates the `thermox` database and tables.
-2. In phpMyAdmin → **SQL**, create a limited user (pick your own password):
-   ```sql
-   CREATE USER 'thermox_user'@'localhost' IDENTIFIED BY 'your-own-password';
-   GRANT SELECT, INSERT, UPDATE ON thermox.* TO 'thermox_user'@'localhost';
-   ```
-   (`root` with no password also works on a private XAMPP machine, but the limited user is safer.)
+### 2. Cloud hosting and database (one-time, about 15 minutes)
+Use any free host that gives **PHP + MySQL + phpMyAdmin + free HTTPS** (for example InfinityFree; hosts change
+their free plans, so check). HTTPS is required because the browser only allows Bluetooth/serial access on secure pages.
+1. Create a free hosting account and a website (a free subdomain is fine).
+2. In the hosting panel open **MySQL Databases** and create a database. Note the **host name** (like `sql123.example.com`),
+   **database name**, **user** and **password**. Free hosts add a prefix to these names; use exactly what the panel shows.
+3. Open **phpMyAdmin** for that database, choose **Import**, select `database/schema.sql`, and press Go.
 
 Tables (`database/schema.sql`):
 
 **experiments**: `id`, `experiment_name`, `mode` (HEATING/COOLING), `target_temperature`, `start_time`, `end_time` (NULL while running)
 
-**temperature_logs**: `id`, `experiment_id` (foreign key → `experiments.id`, cascade delete), `timestamp`, `temperature`, `target_temperature`, `peltier_status`, `fan_status`, `battery_voltage` (NULL when not measured)
+**temperature_logs**: `id`, `experiment_id` (foreign key to `experiments.id`, cascade delete), `timestamp`, `temperature`, `target_temperature`, `peltier_status`, `fan_status`, `battery_voltage` (NULL when not measured)
 
-### 3. PHP API / dashboard setup
-1. Copy the `dashboard/` folder to `C:\xampp\htdocs\thermox\`.
-2. Copy `config.sample.php` to `config.php` and set `db_user`, `db_pass` and a long random `api_key`. `config.php` is git-ignored; never commit it.
-3. Open http://localhost/thermox/.
+(The spec calls the database `thermox`. Use that name if your host allows it.)
+
+### 3. Upload the dashboard (PHP API)
+1. Copy `dashboard/config.sample.php` to `config.php` and fill in the host, database name, user and password from step 2,
+   plus a long random `api_key` (this is the **access key** you type into the dashboard). `config.php` is git-ignored; never commit it.
+2. Upload everything in the `dashboard/` folder (keeping the `api/` subfolder) plus your `config.php` into the website's
+   web folder (usually `htdocs`) using the host's online File Manager or FTP.
+3. Open `https://your-site/` in Chrome or Edge.
 
 | Endpoint | Purpose |
 |---|---|
 | `POST api/start_experiment.php` | JSON `{experiment_name, mode, target_temperature}`; ends any running experiment first |
 | `POST api/stop_experiment.php` | Ends the running experiment |
-| `POST api/log.php` | Raw ThermoX line + `X-API-Key` header; stores it in the running experiment |
+| `POST api/log.php` | Raw ThermoX line; stores it in the running experiment |
 | `GET api/status.php[?experiment_id=N]` | Latest sample and history |
 | `GET api/experiments.php` | Experiment list |
 | `GET api/export.php?experiment_id=N` | CSV download |
 
-All SQL uses prepared statements. `log.php` only accepts the six known fields, checks ranges (e.g. `TEMP` −55 to 125 °C, `PELTIER`/`FAN` 0 or 1) and needs the API key. The writing endpoints reject non-JSON requests. This is built for a local prototype: do not expose it to the internet.
+Security: all SQL uses prepared statements. `log.php` only accepts the six known fields and checks their ranges
+(e.g. `TEMP` -55 to 125 C, `PELTIER`/`FAN` 0 or 1). The three POST endpoints need the access key, and only accept JSON
+(or the plain ThermoX line for `log.php`). Because the site is public, the **read** endpoints (status, list, CSV) are open to
+anyone who knows the address; keep the URL private and do not put personal data in experiment names.
 
-### 4. Receiver (PC)
-1. Pair the ESP32 **ThermoX** in the PC's Bluetooth settings. On Windows, open *More Bluetooth settings → COM Ports* and note the **outgoing** COM port.
-2. ```
-   pip install -r receiver/requirements.txt
-   python receiver/receiver.py --list-ports
-   python receiver/receiver.py --port COM5 --url http://localhost/thermox/api/log.php --key YOUR_API_KEY
-   ```
-   (Linux: `sudo rfcomm bind 0 <ESP32 MAC>` then `--port /dev/rfcomm0`.) The receiver reconnects automatically and prints `stored` or the API error for each line.
-
-### 5. Running an experiment
-1. Open the dashboard, enter a name, pick HEATING or COOLING, enter the target (20–50 °C, like the firmware), press **Start experiment**.
-2. Set the same target on the ThermoX with its buttons. The dashboard value only labels the experiment; each sample stores the target the device reports.
-3. Run `receiver.py`. The badge turns to "Receiving data" and the cards, graph and history update every 2 s. Samples are only stored while an experiment is running.
-4. Press **Stop** when finished. Old runs are listed under *Previous experiments* (**View** to graph, **CSV** to download for Chapter IV).
+### 4. Running an experiment
+1. Pair the ESP32 **ThermoX** in the PC's Bluetooth settings (Windows: *Add device, Bluetooth*).
+2. Open the dashboard, type the **access key**, and press **Connect ThermoX (Bluetooth)**. Choose the port named
+   *Standard Serial over Bluetooth link (COMx)* (the **outgoing** one). The page then forwards every `TEMP=...` line to the API.
+3. Enter a name, pick HEATING or COOLING, enter the target (20-50 C, same as the firmware), and press **Start experiment**.
+4. Set the same target on the ThermoX with its buttons. The dashboard value only labels the experiment; each sample stores
+   the target the device reports.
+5. The cards, graph and history update every 2 s and the badge shows "Receiving data". Keep the tab open while logging.
+   Samples are only stored while an experiment is running.
+6. Press **Stop** when finished. Old runs are listed under *Previous experiments* (**View** to graph, **CSV** to download for Chapter IV).
 
 Quick test without the ESP32 (needs a running experiment):
 ```
-curl -X POST http://localhost/thermox/api/log.php -H "X-API-Key: YOUR_API_KEY" -d "TEMP=28.4,TARGET=22.0,MODE=COOLING,PELTIER=1,FAN=1"
+curl -X POST https://your-site/api/log.php -H "X-API-Key: YOUR_KEY" -d "TEMP=28.4,TARGET=22.0,MODE=COOLING,PELTIER=1,FAN=1"
 ```
+Some free hosts show a bot-check page to command-line tools like curl; the dashboard itself is not affected.
+
+### Optional: Python receiver
+`receiver/receiver.py` does the same job as the page's Connect button, for computers without Chrome/Edge
+(`pip install -r receiver/requirements.txt`, then `python receiver/receiver.py --port COM5 --url https://your-site/api/log.php --key YOUR_KEY`).
 
 ### Limitations
+- Needs a computer with Chrome or Edge (Web Serial). Phones cannot forward Classic Bluetooth data this way.
 - Classic Bluetooth needs the original ESP32 (not S2/S3/C3) and adds some power draw; set `ENABLE_BT_LOGGING = false` to disable.
-- The receiver is a PC script. A phone cannot forward data to the API without a custom app (a phone terminal app can only save the lines to a file).
+- Logging stops if the browser tab is closed or the Bluetooth link drops (press Connect again).
 - Data flows one way: the dashboard cannot change the device target or mode.
 - Battery voltage is not measured yet (future addition on GPIO35), so no battery value is logged or shown.
-- Timestamps come from the PC when each line arrives, not from the ESP32.
+- Timestamps come from the server when each line arrives, not from the ESP32.
+- Free hosts can be slow, limit traffic, or change their terms; export your CSVs after each test.

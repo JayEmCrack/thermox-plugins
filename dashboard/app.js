@@ -11,7 +11,8 @@ async function api(path, opts) {
   return body;
 }
 const post = (path, data) => api(path, {
-  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}),
+  method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': $('apiKey').value },
+  body: JSON.stringify(data || {}),
 });
 
 function setMsg(text, isErr) { const m = $('formMsg'); m.textContent = text; m.className = 'msg' + (isErr ? ' err' : ''); }
@@ -137,6 +138,67 @@ $('stopBtn').addEventListener('click', async () => {
   try { await post('stop_experiment.php'); setMsg('Experiment stopped.'); refresh(); loadExperiments(); }
   catch (err) { setMsg(err.message, true); }
 });
+
+// ---- Bluetooth -> database bridge (Web Serial, Chrome/Edge) ----
+// The paired ESP32 appears as a Bluetooth COM port. Each "TEMP=..." line is sent to api/log.php.
+let btPort = null, btReader = null;
+const setBt = (text, isErr) => { const m = $('btMsg'); m.textContent = text; m.className = 'msg' + (isErr ? ' err' : ''); };
+
+async function sendLine(line) {
+  try {
+    const res = await fetch('api/log.php', { method: 'POST', headers: { 'Content-Type': 'text/plain', 'X-API-Key': $('apiKey').value }, body: line });
+    const body = await res.json().catch(() => ({}));
+    setBt(res.ok ? 'Receiving: ' + line : 'Not stored: ' + (body.error || res.status) + '  [' + line + ']', !res.ok);
+    if (res.ok) refresh();
+  } catch (err) { setBt('Cannot reach the server: ' + err.message, true); }
+}
+
+async function btConnect() {
+  if (!('serial' in navigator)) { setBt('This browser has no Web Serial support. Use Chrome or Edge on a computer.', true); return; }
+  if (!$('apiKey').value) { setBt('Enter the access key first.', true); return; }
+  try {
+    btPort = await navigator.serial.requestPort();
+    await btPort.open({ baudRate: 115200 });
+  } catch (err) { setBt('Could not open the port: ' + err.message, true); btPort = null; return; }
+  $('btConnect').hidden = true; $('btDisconnect').hidden = false;
+  setBt('Connected. Waiting for data from ThermoX...');
+  try {
+    let buf = '';
+    const dec = new TextDecoder();
+    while (btPort && btPort.readable) {
+      btReader = btPort.readable.getReader();
+      try {
+        for (;;) {
+          const { value, done } = await btReader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i;
+          while ((i = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+            if (line.startsWith('TEMP=')) await sendLine(line);
+          }
+          if (buf.length > 500) buf = '';
+        }
+      } finally { btReader.releaseLock(); btReader = null; }
+      if (!btPort) break;
+    }
+  } catch (err) { if (btPort) setBt('Connection lost: ' + err.message, true); }
+  await btDisconnect(true);
+}
+
+async function btDisconnect(keepMsg) {
+  const p = btPort; btPort = null;
+  try { if (btReader) await btReader.cancel(); } catch (e) { /* already closed */ }
+  try { if (p) await p.close(); } catch (e) { /* already closed */ }
+  $('btConnect').hidden = false; $('btDisconnect').hidden = true;
+  if (keepMsg !== true) setBt('Disconnected.');
+}
+$('btConnect').addEventListener('click', btConnect);
+$('btDisconnect').addEventListener('click', () => btDisconnect());
+
+// Remember the access key for this browser tab only.
+try { $('apiKey').value = sessionStorage.getItem('thermoxKey') || ''; } catch (e) { /* storage blocked */ }
+$('apiKey').addEventListener('input', () => { try { sessionStorage.setItem('thermoxKey', $('apiKey').value); } catch (e) { /* ignore */ } });
 
 window.addEventListener('resize', () => lastData && drawChart(lastData.logs));
 refresh(); loadExperiments();

@@ -1,9 +1,7 @@
--- ThermoX experiment logging database
--- Import with phpMyAdmin (Import tab) or:  mysql -u root -p < database/schema.sql
-
-CREATE DATABASE IF NOT EXISTS thermox
-  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE thermox;
+-- ThermoX experiment logging tables
+-- Create a database first (named "thermox" if your host allows it; hosting panels often
+-- add a prefix such as if0_12345_thermox), select it in phpMyAdmin, then use the
+-- Import tab with this file. Command line alternative:  mysql -u USER -p DBNAME < schema.sql
 
 CREATE TABLE IF NOT EXISTS experiments (
   id                 INT UNSIGNED NOT NULL AUTO_INCREMENT,

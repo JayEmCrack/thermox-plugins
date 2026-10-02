@@ -6,7 +6,7 @@ Pair the ESP32 ("ThermoX") with your PC first; the OS then exposes a serial port
 (Windows: an outgoing COM port, Linux: /dev/rfcomm0). Example:
 
     python receiver.py --list-ports
-    python receiver.py --port COM5 --url http://localhost/thermox/api/log.php --key YOUR_API_KEY
+    python receiver.py --port COM5 --url https://your-site/api/log.php --key YOUR_API_KEY
 """
 import argparse
 import os
@@ -37,7 +37,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", help="Bluetooth serial port, e.g. COM5 or /dev/rfcomm0")
     ap.add_argument("--baud", type=int, default=115200)
-    ap.add_argument("--url", default="http://localhost/thermox/api/log.php")
+    ap.add_argument("--url", default="https://your-site/api/log.php")
     ap.add_argument("--key", default=os.environ.get("THERMOX_API_KEY", ""),
                     help="API key (or set THERMOX_API_KEY); must match api_key in config.php")
     ap.add_argument("--list-ports", action="store_true")

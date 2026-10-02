@@ -15,6 +15,16 @@
 
   <main>
     <section class="card">
+      <h2>Connection</h2>
+      <div class="row">
+        <label>Access key <input id="apiKey" type="password" autocomplete="off" placeholder="from config.php"></label>
+        <button type="button" id="btConnect">Connect ThermoX (Bluetooth)</button>
+        <button type="button" id="btDisconnect" class="secondary" hidden>Disconnect</button>
+      </div>
+      <p id="btMsg" class="msg">Pair the ESP32 named &ldquo;ThermoX&rdquo; with this computer first, then press Connect and choose its Bluetooth COM port. Needs Chrome or Edge.</p>
+    </section>
+
+    <section class="card">
       <h2>Experiment</h2>
       <form id="startForm" class="row">
         <label>Name <input id="expName" required maxlength="100" placeholder="Cooling trial 1"></label>
@@ -26,7 +36,7 @@
         <button type="button" id="stopBtn" class="secondary">Stop</button>
       </form>
       <p id="formMsg" class="msg"></p>
-      <p class="hint">The target and mode here describe the experiment. The device target is still set with its buttons, and each sample stores the target the device reports.</p>
+      <p class="hint">Samples are saved only while an experiment is running. The target and mode here describe the experiment. The device target is still set with its buttons, and each sample stores the target the device reports.</p>
     </section>
 
     <section class="card">

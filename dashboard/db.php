@@ -24,7 +24,7 @@ function db(): PDO
     if ($pdo === null) {
         try {
             $pdo = new PDO(
-                "mysql:host={$config['db_host']};dbname={$config['db_name']};charset=utf8mb4",
+                "mysql:host={$config['db_host']};port=" . (int)($config['db_port'] ?? 3306) . ";dbname={$config['db_name']};charset=utf8mb4",
                 $config['db_user'],
                 $config['db_pass'],
                 [
@@ -40,6 +40,17 @@ function db(): PDO
         }
     }
     return $pdo;
+}
+
+// Write endpoints need the shared key (sent as the X-API-Key header) because the
+// dashboard is hosted on the public internet.
+function require_key(): void
+{
+    global $config;
+    $key = (string)($config['api_key'] ?? '');
+    if ($key === '' || !hash_equals($key, (string)($_SERVER['HTTP_X_API_KEY'] ?? ''))) {
+        json_out(['error' => 'Invalid or missing access key.'], 401);
+    }
 }
 
 function require_method(string $method): void

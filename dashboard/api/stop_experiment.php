@@ -3,6 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/../db.php';
 
 require_method('POST');
+require_key();
 read_json();
 
 try {
