@@ -7,6 +7,7 @@
    - User sets target 20..50 C in 1 C steps with two buttons (B1 = down, B2 = up)
    - DS18B20 measures water temp; BTS7960 drives one TEC1-12706 in either direction
    - Below target - hysteresis -> HEAT ; above target + hysteresis -> COOL ; else IDLE
+   - Hot <-> cold reversal is blocked for REVERSE_COOLDOWN_MS (60 s) with the Peltier off
    - Fan: full duty in COOL, ~50 % in HEAT, off when idle (only the OLED stays on)
    - SH1107 128x128 OLED shows water temp, target, mode, fan RPM, battery
 */
@@ -47,7 +48,7 @@ constexpr float DUTY_TAPER_C = 5.0f;         // full power until within this ban
 constexpr uint8_t TEC_MAX_DUTY = 255;        // lower to limit current/battery draw
 constexpr uint8_t TEC_MIN_DUTY = 90;         // below this the TEC does little useful work
 constexpr bool    HEAT_ON_RPWM = true;       // swap if your wiring heats on LPWM instead
-constexpr uint32_t DEADTIME_MS = 1000;       // pause when reversing current direction
+constexpr uint32_t REVERSE_COOLDOWN_MS = 60000; // Peltier must rest this long (off) before the direction reverses
 constexpr uint32_t FAN_RUNON_MS = 0;         // fan run-on after TEC stops; 0 = fan off immediately
 constexpr uint32_t SENSOR_FAIL_MS = 5000;
 constexpr uint32_t FAN_STALL_GRACE_MS = 5000;
@@ -76,6 +77,8 @@ float waterC = NAN, targetC = TARGET_DEFAULT;
 Mode mode = IDLE; Fault fault = F_NONE;
 uint8_t tecDuty = 0, fanDuty = 0;
 uint32_t lastGoodRead = 0, lastTecActive = 0, modeSince = 0, fanOnSince = 0;
+Mode lastDriven = IDLE;                      // last direction the Peltier was driven in
+uint16_t waitLeftS = 0;                      // seconds left of the reversal cooldown (0 = none)
 volatile uint32_t tachPulses = 0;
 uint16_t fanRpm = 0;
 int battPct = -1;
@@ -164,13 +167,15 @@ void control() {
   else if (mode == HEAT && waterC >= targetC) want = IDLE;
   else if (mode == COOL && waterC <= targetC) want = IDLE;
 
-  if (want != mode) {
-    if (mode != IDLE && want != IDLE) {          // reversing: stop, wait dead time
-      tecStop();
-      if (now - modeSince < DEADTIME_MS) return;
-    }
-    mode = want; modeSince = now;
+  // Never flip hot <-> cold quickly: after driving one way the Peltier stays OFF until
+  // REVERSE_COOLDOWN_MS has passed since it last ran, then it may start the other way.
+  waitLeftS = 0;
+  if ((want == HEAT || want == COOL) && lastDriven != IDLE && want != lastDriven &&
+      now - lastTecActive < REVERSE_COOLDOWN_MS) {
+    waitLeftS = (REVERSE_COOLDOWN_MS - (now - lastTecActive) + 999) / 1000;
+    want = IDLE;
   }
+  if (want != mode) { mode = want; modeSince = now; }
 
   if (mode == IDLE) {
     tecStop();
@@ -181,7 +186,7 @@ void control() {
                 : (uint8_t)(TEC_MIN_DUTY + (TEC_MAX_DUTY - TEC_MIN_DUTY) * (err / DUTY_TAPER_C));
     tecDrive(mode, min<uint8_t>(d, TEC_MAX_DUTY));
     setFan(mode == COOL ? 255 : 128);            // full in cooling, ~50 % in heating
-    lastTecActive = now;
+    lastTecActive = now; lastDriven = mode;
   }
 
   // Fan stall protection: TEC without airflow overheats its heat sink
@@ -214,7 +219,9 @@ void drawUI() {
 
   oled.setFont(u8g2_font_9x15_tr);
   snprintf(b, sizeof b, "Set: %.0f C", targetC); oled.drawStr(8, 84, b);
-  oled.drawStr(8, 102, mode == FAULT ? FAULT_TXT[fault] : MODE_TXT[mode]);
+  if (mode == FAULT) oled.drawStr(8, 102, FAULT_TXT[fault]);
+  else if (waitLeftS) { snprintf(b, sizeof b, "WAIT %us", waitLeftS); oled.drawStr(8, 102, b); }
+  else oled.drawStr(8, 102, MODE_TXT[mode]);
 
   oled.setFont(u8g2_font_6x12_tr);
   snprintf(b, sizeof b, "Fan %u rpm", fanRpm); oled.drawStr(2, 124, b);
