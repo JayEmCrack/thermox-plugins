@@ -14,7 +14,7 @@ Libraries: OneWire, DallasTemperature, U8g2.
 - If heating/cooling is reversed, flip `HEAT_ON_RPWM` or swap the TEC leads.
 
 ## Suggested additions
-1. **Battery gauge** (the paper notes the icon is fixed): 100 kΩ/100 kΩ divider from the
+1. **Battery gauge (FUTURE ADDITION, disabled for now)**: 100 kΩ/100 kΩ divider from the
    battery to GPIO35 plus 100 nF to GND, then set `ENABLE_BATTERY_SENSE = true`.
 2. **Low-battery cutoff / undervoltage lockout**: stop the TEC below ~3.3 V/cell
    (use a protected Li-ion pack or BMS).
@@ -24,6 +24,14 @@ Libraries: OneWire, DallasTemperature, U8g2.
 5. **Inline fuse (5–10 A)** on the TEC supply and a bulk capacitor (470–1000 µF) on the
    BTS7960 supply.
 6. **Hardware watchdog** (`esp_task_wdt`) and a buzzer for fault/target-reached alerts.
-7. **Optional Bluetooth/Wi-Fi** logging for the Chapter IV runtime and temperature tests.
 8. **PID control** in place of the proportional taper once real heating/cooling curves
    are measured.
+
+## Bluetooth logging (implemented)
+Pair with the ESP32 named **ThermoX** (Classic Bluetooth SPP) and open it in any serial
+terminal app (e.g. "Serial Bluetooth Terminal" on Android). One CSV line per second:
+`ms,water_c,target_c,mode,fault,tec_duty,fan_duty,fan_rpm,batt_pct`
+(`batt_pct` is -1 while the battery gauge is disabled.) The same lines go to USB serial at
+115200 baud. Save the output as a `.csv` for the Chapter IV tests. Note: Classic Bluetooth
+needs an ESP32 (not S2/C3/S3) and adds some power draw; set `ENABLE_BT_LOGGING = false` to
+turn it off.

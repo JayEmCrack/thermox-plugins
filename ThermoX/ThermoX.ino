@@ -15,6 +15,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <U8g2lib.h>
+#include <BluetoothSerial.h>   // ESP32 Classic Bluetooth (SPP)
 
 // ---------------- Pins (as wired) ----------------
 constexpr uint8_t PIN_BTN_DOWN = 32;   // Button 1
@@ -29,8 +30,8 @@ constexpr uint8_t PIN_ONEWIRE  = 14;   // DS18B20 data (4.7k pull-up to 3.3V)
 constexpr uint8_t PIN_FAN_PWM  = 23;   // SUNON control (blue/PWM wire)
 constexpr uint8_t PIN_FAN_TACH = 34;   // SUNON FG (input-only pin: needs external pull-up)
 
-// Optional battery sense (NOT in the original pin list). Set to true only after
-// adding a voltage divider to this pin (see README.md).
+// Battery gauge: FUTURE ADDITION only. Leave false until the voltage divider is built
+// on GPIO35 (not in the current pin list; see README.md).
 constexpr bool    ENABLE_BATTERY_SENSE = false;
 constexpr uint8_t PIN_BATT_ADC = 35;
 constexpr float   BATT_DIVIDER = 2.0f;      // e.g. 100k/100k
@@ -56,7 +57,12 @@ constexpr uint8_t  FAN_PULSES_PER_REV = 2;   // SUNON 4-wire FG standard
 constexpr uint32_t PWM_TEC_HZ = 20000, PWM_FAN_HZ = 25000;
 constexpr uint8_t  PWM_BITS = 8;
 
+constexpr bool    ENABLE_BT_LOGGING = true;
+constexpr char    BT_NAME[] = "ThermoX";
+constexpr uint32_t LOG_PERIOD_MS = 1000;
+
 // ---------------- Globals ----------------
+BluetoothSerial SerialBT;
 enum Mode : uint8_t { IDLE, HEAT, COOL, FAULT };
 enum Fault : uint8_t { F_NONE, F_SENSOR, F_OVERTEMP, F_UNDERTEMP, F_FAN };
 const char* MODE_TXT[]  = {"IDLE", "HEATING", "COOLING", "FAULT"};
@@ -217,6 +223,7 @@ void drawUI() {
 // ---------------- Arduino ----------------
 void setup() {
   Serial.begin(115200);
+  if (ENABLE_BT_LOGGING) { SerialBT.begin(BT_NAME); SerialBT.println("ms,water_c,target_c,mode,fault,tec_duty,fan_duty,fan_rpm,batt_pct"); }
   pinMode(PIN_REN, OUTPUT); pinMode(PIN_LEN, OUTPUT);
   digitalWrite(PIN_REN, LOW); digitalWrite(PIN_LEN, LOW);
   ledcAttach(PIN_RPWM, PWM_TEC_HZ, PWM_BITS); ledcAttach(PIN_LPWM, PWM_TEC_HZ, PWM_BITS);
@@ -242,8 +249,12 @@ void loop() {
   control();
   drawUI();
   static uint32_t t0 = 0;
-  if (millis() - t0 > 2000) {
+  if (millis() - t0 >= LOG_PERIOD_MS) {
     t0 = millis();
-    Serial.printf("T=%.2f set=%.0f %s tec=%u fan=%urpm\n", waterC, targetC, MODE_TXT[mode], tecDuty, fanRpm);
+    char line[96];
+    snprintf(line, sizeof line, "%lu,%.2f,%.0f,%s,%s,%u,%u,%u,%d", (unsigned long)t0, waterC, targetC,
+             MODE_TXT[mode], FAULT_TXT[fault][0] ? FAULT_TXT[fault] : "-", tecDuty, fanDuty, fanRpm, battPct);
+    Serial.println(line);                       // same CSV on USB serial
+    if (ENABLE_BT_LOGGING && SerialBT.hasClient()) SerialBT.println(line);
   }
 }
