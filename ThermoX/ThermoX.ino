@@ -59,7 +59,7 @@ constexpr uint8_t  PWM_BITS = 8;
 
 constexpr bool    ENABLE_BT_LOGGING = true;
 constexpr char    BT_NAME[] = "ThermoX";
-constexpr uint32_t LOG_PERIOD_MS = 1000;
+constexpr uint32_t LOG_PERIOD_MS = 2000;   // 1-5 s is reasonable
 
 // ---------------- Globals ----------------
 BluetoothSerial SerialBT;
@@ -79,6 +79,7 @@ uint32_t lastGoodRead = 0, lastTecActive = 0, modeSince = 0, fanOnSince = 0;
 volatile uint32_t tachPulses = 0;
 uint16_t fanRpm = 0;
 int battPct = -1;
+float battV = NAN;                           // stays NaN unless ENABLE_BATTERY_SENSE
 
 void IRAM_ATTR onTach() { tachPulses++; }
 
@@ -125,6 +126,7 @@ void readBattery() {
   static uint32_t t0 = 0; uint32_t now = millis();
   if (now - t0 < 2000) return; t0 = now;
   float v = analogReadMilliVolts(PIN_BATT_ADC) / 1000.0f * BATT_DIVIDER;
+  battV = v;
   battPct = constrain((int)((v - BATT_EMPTY_V) * 100 / (BATT_FULL_V - BATT_EMPTY_V)), 0, 100);
 }
 
@@ -220,10 +222,29 @@ void drawUI() {
   oled.sendBuffer();
 }
 
+// ---------------- Logging ----------------
+// One line per sample, read by receiver/receiver.py and stored via the PHP API:
+//   TEMP=28.40,TARGET=18.0,MODE=COOLING,PELTIER=1,FAN=1[,BATTERY=12.10]
+// MODE is HEATING, COOLING, IDLE (inside the hysteresis band) or FAULT.
+// BATTERY is only sent when battery sensing is really enabled.
+void logData() {
+  static uint32_t t0 = 0;
+  if (millis() - t0 < LOG_PERIOD_MS) return;
+  t0 = millis();
+  if (isnan(waterC)) return;                     // no valid reading yet
+  char line[128];
+  int n = snprintf(line, sizeof line, "TEMP=%.2f,TARGET=%.1f,MODE=%s,PELTIER=%d,FAN=%d",
+                   waterC, targetC, MODE_TXT[mode], tecDuty > 0, fanDuty > 0);
+  if (ENABLE_BATTERY_SENSE && !isnan(battV))
+    snprintf(line + n, sizeof line - n, ",BATTERY=%.2f", battV);
+  Serial.println(line);                          // same line on USB serial
+  if (ENABLE_BT_LOGGING && SerialBT.hasClient()) SerialBT.println(line);
+}
+
 // ---------------- Arduino ----------------
 void setup() {
   Serial.begin(115200);
-  if (ENABLE_BT_LOGGING) { SerialBT.begin(BT_NAME); SerialBT.println("ms,water_c,target_c,mode,fault,tec_duty,fan_duty,fan_rpm,batt_pct"); }
+  if (ENABLE_BT_LOGGING) SerialBT.begin(BT_NAME);
   pinMode(PIN_REN, OUTPUT); pinMode(PIN_LEN, OUTPUT);
   digitalWrite(PIN_REN, LOW); digitalWrite(PIN_LEN, LOW);
   ledcAttach(PIN_RPWM, PWM_TEC_HZ, PWM_BITS); ledcAttach(PIN_LPWM, PWM_TEC_HZ, PWM_BITS);
@@ -248,13 +269,5 @@ void loop() {
   handleButtons();
   control();
   drawUI();
-  static uint32_t t0 = 0;
-  if (millis() - t0 >= LOG_PERIOD_MS) {
-    t0 = millis();
-    char line[96];
-    snprintf(line, sizeof line, "%lu,%.2f,%.0f,%s,%s,%u,%u,%u,%d", (unsigned long)t0, waterC, targetC,
-             MODE_TXT[mode], FAULT_TXT[fault][0] ? FAULT_TXT[fault] : "-", tecDuty, fanDuty, fanRpm, battPct);
-    Serial.println(line);                       // same CSV on USB serial
-    if (ENABLE_BT_LOGGING && SerialBT.hasClient()) SerialBT.println(line);
-  }
+  logData();
 }
