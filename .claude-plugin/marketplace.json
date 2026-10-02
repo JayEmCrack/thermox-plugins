@@ -1,0 +1,13 @@
+{
+  "name": "thermox",
+  "owner": {
+    "name": "ThermoX"
+  },
+  "plugins": [
+    {
+      "name": "thermox-github",
+      "source": "./plugins/thermox-github",
+      "description": "GitHub connector (official GitHub MCP server) plus issue and PR workflow commands."
+    }
+  ]
+}

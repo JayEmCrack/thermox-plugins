@@ -1,0 +1,9 @@
+{
+  "name": "thermox-github",
+  "version": "0.1.0",
+  "description": "GitHub connector (official GitHub MCP server) plus issue and PR workflow commands.",
+  "author": {
+    "name": "ThermoX"
+  },
+  "keywords": ["github", "mcp", "connector", "pull-requests", "issues"]
+}
