@@ -1,0 +1,300 @@
+newmtl m_shell_front_wall
+Kd 0.616 0.702 0.761
+d 0.14
+
+newmtl m_shell_side_L
+Kd 0.616 0.702 0.761
+d 0.14
+
+newmtl m_shell_side_R
+Kd 0.616 0.702 0.761
+d 0.14
+
+newmtl m_shell_divider
+Kd 0.616 0.702 0.761
+d 0.14
+
+newmtl m_foot_1
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_foot_2
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_foot_3
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_foot_4
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_back_side_L
+Kd 0.616 0.702 0.761
+d 0.14
+
+newmtl m_back_side_R
+Kd 0.616 0.702 0.761
+d 0.14
+
+newmtl m_back_rear_wall
+Kd 0.616 0.702 0.761
+d 0.14
+
+newmtl m_back_bottom
+Kd 0.616 0.702 0.761
+d 0.30
+
+newmtl m_back_top_panel
+Kd 0.867 0.894 0.914
+d 0.90
+
+newmtl m_exhaust_slot_1
+Kd 0.063 0.094 0.125
+d 1.00
+
+newmtl m_exhaust_slot_2
+Kd 0.063 0.094 0.125
+d 1.00
+
+newmtl m_exhaust_slot_3
+Kd 0.063 0.094 0.125
+d 1.00
+
+newmtl m_exhaust_slot_4
+Kd 0.063 0.094 0.125
+d 1.00
+
+newmtl m_lid
+Kd 0.867 0.894 0.914
+d 1.00
+
+newmtl m_cup_wall
+Kd 0.773 0.808 0.839
+d 0.55
+
+newmtl m_cup_floor
+Kd 0.773 0.808 0.839
+d 1.00
+
+newmtl m_insulation_sleeve
+Kd 0.878 0.784 0.541
+d 0.40
+
+newmtl m_water
+Kd 0.345 0.706 0.886
+d 0.55
+
+newmtl m_water_plate
+Kd 0.725 0.761 0.788
+d 1.00
+
+newmtl m_foam_ring_a
+Kd 0.878 0.784 0.541
+d 1.00
+
+newmtl m_foam_ring_b
+Kd 0.878 0.784 0.541
+d 1.00
+
+newmtl m_foam_ring_c
+Kd 0.878 0.784 0.541
+d 1.00
+
+newmtl m_foam_ring_d
+Kd 0.878 0.784 0.541
+d 1.00
+
+newmtl m_tec_hot_face
+Kd 0.910 0.455 0.231
+d 1.00
+
+newmtl m_tec_body
+Kd 0.925 0.937 0.945
+d 1.00
+
+newmtl m_tec_cold_face
+Kd 0.239 0.624 0.839
+d 1.00
+
+newmtl m_heatsink_base
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_01
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_02
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_03
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_04
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_05
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_06
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_07
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_08
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_09
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_10
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_11
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_12
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_13
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_14
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_15
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_16
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_17
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fan_frame_a
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_fan_frame_b
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_fan_frame_c
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_fan_frame_d
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_fan_hub
+Kd 0.482 0.529 0.569
+d 1.00
+
+newmtl m_fan_blade_1
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_2
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_3
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_4
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_5
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_6
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_7
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_esp32_30pin
+Kd 0.114 0.165 0.200
+d 1.00
+
+newmtl m_esp32_usb
+Kd 0.682 0.718 0.749
+d 1.00
+
+newmtl m_buck_12v_5v
+Kd 0.239 0.498 0.604
+d 1.00
+
+newmtl m_cell_11
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_cell_12
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_cell_13
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_cell_21
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_cell_22
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_cell_23
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_bms_3s
+Kd 0.247 0.435 0.604
+d 1.00
+
+newmtl m_bts7960
+Kd 0.118 0.353 0.659
+d 1.00
+
+newmtl m_oled_1_5in
+Kd 0.043 0.071 0.094
+d 1.00
+
+newmtl m_oled_screen
+Kd 0.624 0.894 1.000
+d 1.00
+
+newmtl m_button_1
+Kd 0.851 0.310 0.227
+d 1.00
+
+newmtl m_button_2
+Kd 0.851 0.310 0.227
+d 1.00
+
