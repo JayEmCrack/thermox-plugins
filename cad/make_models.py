@@ -12,19 +12,31 @@ SEG = 48                      # segments on round parts
 P = []                        # the parts
 
 
-def box(name, grp, x0, x1, y0, y1, z0, z1, color, label=None, alpha=1.0, rotz=0.0, edges=False):
+def box(name, grp, x0, x1, y0, y1, z0, z1, color, label=None, alpha=1.0, rotz=0.0, edges=False, rotx=0.0, roty=0.0, skin=False, metal=None):
+    """Axis-aligned box; rotx/roty/rotz (degrees) turn it about its own centre, applied in that order about the global axes."""
     P.append(dict(kind="box", name=name, grp=grp, x0=x0, x1=x1, y0=y0, y1=y1, z0=z0, z1=z1, color=color,
-                  alpha=alpha, rotz=rotz, edges=edges, label=label or name))
+                  alpha=alpha, rotz=rotz, rotx=rotx, roty=roty, edges=edges, skin=skin, metal=metal, label=label or name))
 
 
-def cyl(name, grp, cx, cy, r, z0, z1, color, label=None, alpha=1.0):
+def cyl(name, grp, cx, cy, r, z0, z1, color, label=None, alpha=1.0, skin=False, metal=None):
     P.append(dict(kind="cyl", name=name, grp=grp, cx=cx, cy=cy, r=r, z0=z0, z1=z1, color=color, alpha=alpha,
-                  rotz=0.0, edges=False, label=label or name))
+                  rotz=0.0, rotx=0.0, roty=0.0, edges=False, skin=skin, metal=metal, label=label or name))
 
 
-def ring(name, grp, cx, cy, r_in, r_out, z0, z1, color, label=None, alpha=1.0):
+def ring(name, grp, cx, cy, r_in, r_out, z0, z1, color, label=None, alpha=1.0, skin=False, metal=None):
     P.append(dict(kind="ring", name=name, grp=grp, cx=cx, cy=cy, r_in=r_in, r_out=r_out, z0=z0, z1=z1, color=color,
-                  alpha=alpha, rotz=0.0, edges=False, label=label or name))
+                  alpha=alpha, rotz=0.0, rotx=0.0, roty=0.0, edges=False, skin=skin, metal=metal, label=label or name))
+
+
+def lathe(name, grp, pts, color, label=None, alpha=1.0, skin=False, metal=None):
+    """Solid of revolution about the Z axis. pts = closed outline of (radius, z), counter-clockwise (radius to the right, z up)."""
+    P.append(dict(kind="lathe", name=name, grp=grp, pts=[list(q) for q in pts], cx=0.0, cy=0.0, color=color, alpha=alpha,
+                  rotz=0.0, rotx=0.0, roty=0.0, edges=False, skin=skin, metal=metal, label=label or name))
+
+
+def shell_pts(outer, t=1.5):
+    """Hollow wall of thickness t from the outer profile (bottom to top)."""
+    return [tuple(q) for q in outer] + [(r - t, z) for r, z in reversed(outer)]
 
 
 def build_box():
@@ -140,43 +152,104 @@ def stack(cx, z0, tag=""):
     box("water_plate", "thermal", cx - 20, cx + 20, -20, 20, zt + 4, zt + 12, "#b9c2c9", "Water-side plate, 40 x 40 x 8 mm (aluminium or copper)")
 
 
-def build_bottle():
-    """Portable bottle: round body 90 mm across, battery at the bottom, fan and heatsink above, water cup on top."""
+STYLES = {
+    "classic": dict(title="Classic", body="#2f5d49", waist="#e8dfc9", accent="#c9a24a", grip="#8a5a36", lid="#efe8d6",
+                    base="#3a2a20", handle="#8a5a36", btn="#c9a24a", slot="#14201a", brass=0.85, handle_metal=0.05),
+    "modern": dict(title="Modern", body="#2b3036", waist="#3c444c", accent="#ff6b2c", grip="#14171a", lid="#1d2125",
+                   base="#0f1113", handle="#c3cad1", btn="#ff6b2c", slot="#0a0c0e", brass=0.35, handle_metal=0.9),
+}
+TOP = 252                                             # top face of the lid
+LOWER = [(44.2, 3), (45.0, 5), (45.0, 82), (44.5, 84)]
+MID = [(44.5, 84)] + [(44.5 - 3.9 * math.sin(math.pi * (z - 84) / 76.0), z) for z in range(88, 160, 4)] + [(44.5, 160)]
+UPPER = [(44.5, 160), (45.0, 162), (45.0, 234), (44.4, 236)]
+
+
+def skin_inner(z0, z1):
+    """Smallest inside radius of the body wall between z0 and z1 (the wall is 1.5 mm thick)."""
+    pts = [(r - 1.5, z) for prof in (LOWER, MID, UPPER) for r, z in prof]
+    best = 1e9
+    for (ra, za), (rb, zb) in zip(pts, pts[1:]):
+        lo, hi = min(za, zb), max(za, zb)
+        if hi < z0 or lo > z1 or hi == lo:
+            continue
+        for z in (max(z0, lo), min(z1, hi)):
+            best = min(best, ra + (rb - ra) * (z - za) / (zb - za))
+    return best
+
+
+def build_bottle(style):
+    """Portable bottle, 92 mm at the widest and 252 mm tall. Waisted body, domed lid, trim bands, carry loop."""
+    S = STYLES[style]
     P.clear()
-    R_IN, R_OUT = 43.5, 45.0
-    GLASS = "#9db3c2"
-    TOP = 249
-    ring("shell", "shell", 0, 0, R_IN, R_OUT, 3, TOP, GLASS, "Outer shell, 90 mm across (1.5 mm wall)", 0.14)
-    cyl("base_pad", "shell", 0, 0, R_OUT, 0, 3, "#2a323a", "Rubber base pad, 3 mm (non-slip)")
-    cyl("bulkhead", "shell", 0, 0, R_IN, 82, 84, "#8d99a3", "Bulkhead between battery bay and air path, 2 mm (wires pass through)")
-    for k in range(8):                                   # air in, around the gap under the fan
-        a = 22.5 + 45 * k
-        px, py = 44.7 * math.cos(math.radians(a)), 44.7 * math.sin(math.radians(a))
-        box("intake_slot_%d" % (k + 1), "shell", px - 0.9, px + 0.9, py - 7, py + 7, 85.5, 90.5, "#101820", "Air intake slot", rotz=a)
-    for side, a in (("front", 0), ("rear", 180)):        # air out, at fin height
-        px, py = 44.7 * math.cos(math.radians(a)), 44.7 * math.sin(math.radians(a))
-        for j, z in enumerate((124, 129.5, 135, 140.5)):
-            box("exhaust_slot_%s_%d" % (side, j + 1), "shell", px - 0.9, px + 0.9, py - 18, py + 18, z, z + 3.5, "#101820", "Exhaust slot", rotz=a)
-
-    stack(0, 92)                                         # fan 92-120, fins 120-145, base 145-150, TEC 150-154, plate 154-162
-
-    cyl("cup_floor", "cup", 0, 0, 37, 162, 165, "#c5ced6", "Cup floor, 3 mm aluminium spreader plate")
-    ring("cup_wall", "cup", 0, 0, 36, 37, 165, 241, "#c5ced6", "Water cup wall, inside diameter 72 mm", 0.55)
-    ring("insulation_sleeve", "cup", 0, 0, 37, 42.5, 165, 241, "#e0c88a", "Foam insulation sleeve, 5.5 mm", 0.4)
-    cyl("water", "water", 0, 0, 36, 165, 233, "#58b4e2", "Water, about 275 mL (68 mm deep)", 0.55)
-    cyl("lid", "lid", 0, 0, R_IN, 241, TOP, "#dde4e9", "Removable lid, 8 mm")
-
-    box("oled_1_5in", "display", -25, 13, -19, 19, TOP, TOP + 3.2, "#0b1218", "1.5 inch OLED module, about 38 x 38 mm (on the lid)")
-    box("oled_screen", "display", -22, 10, -16, 16, TOP + 3.2, TOP + 3.4, "#9fe4ff", "OLED screen (128 x 128)")
-    for sy in (-8, 8):
-        cyl("button_%s" % ("1" if sy < 0 else "2"), "display", 24, sy, 3.2, TOP, TOP + 3, "#d94f3a", "Push button (GPIO32 / GPIO33)")
-    box("handle_post_L", "handle", 30, 38, -26, -21, TOP, TOP + 15, "#3a4650", "Carry handle post (simplified, folds flat)")
-    box("handle_post_R", "handle", 30, 38, 21, 26, TOP, TOP + 15, "#3a4650", "Carry handle post (simplified, folds flat)")
-    box("handle_bar", "handle", 30, 38, -26, 26, TOP + 15, TOP + 19, "#3a4650", "Carry handle bar (simplified)")
+    # ---- outer skin (hollow lathe walls, 1.5 mm)
+    lathe("base_pad", "shell", [(0, 0), (40, 0), (43, 1.8), (44.2, 3), (0, 3)], S["base"], "Rubber base pad, 3 mm (non-slip)", skin=True)
+    lathe("body_lower", "shell", shell_pts(LOWER), S["body"], "Lower body, holds the battery, 90 mm across", skin=True)
+    lathe("body_waist", "shell", shell_pts(MID), S["waist"], "Waisted middle band: fan intake at the bottom, exhaust slots on two sides", skin=True)
+    lathe("body_upper", "shell", shell_pts(UPPER), S["body"], "Upper body around the insulated water cup", skin=True)
+    lathe("lid_dome", "lid", [(0, 236), (43.0, 236), (44.6, 238), (44.6, 243), (43.6, 246.5), (40.5, 249.2), (35, 251.2), (30, TOP), (0, TOP)],
+          S["lid"], "Domed removable lid, 16 mm", skin=True)
+    for k, (z0, z1) in enumerate(((82.5, 86), (158, 161.5), (232.5, 236)), start=1):
+        ring("trim_band_%d" % k, "shell", 0, 0, 44.6, 46.2, z0, z1, S["accent"], "Trim band", skin=True, metal=S["brass"])
+    if style == "classic":
+        ring("grip_wrap", "shell", 0, 0, 44.8, 46.0, 172, 226, S["grip"], "Leather grip wrap, 54 mm", skin=True, metal=0.05)
+    else:
+        for k in range(9):
+            ring("grip_rib_%d" % (k + 1), "shell", 0, 0, 44.8, 46.3, 174 + 6 * k, 176.2 + 6 * k, S["grip"], "Soft-touch grip rib", skin=True, metal=0.05)
+    box("nameplate", "shell", 42.8, 46.3, -12, 12, 201, 209, S["accent"], "Name plate, 24 x 8 mm", skin=True, metal=S["brass"])
     for sy in (-1, 1):
-        box("strap_lug_%s" % ("L" if sy < 0 else "R"), "shell", -3, 3, min(sy * 44, sy * 49), max(sy * 44, sy * 49), 196, 206, "#3a4650", "Strap lug for a shoulder strap")
+        box("strap_lug_%s" % ("L" if sy < 0 else "R"), "shell", -3, 3, min(sy * 43.5, sy * 48.5), max(sy * 43.5, sy * 48.5), 200, 208,
+            S["accent"], "Strap lug for a shoulder strap", skin=True, metal=S["brass"])
 
-    # battery bay, 3 to 82
+    # ---- air slots (dark markers on the wall)
+    for k in range(8):
+        a = 22.5 + 45 * k
+        px, py = 44.1 * math.cos(math.radians(a)), 44.1 * math.sin(math.radians(a))
+        box("intake_slot_%d" % (k + 1), "shell", px - 0.9, px + 0.9, py - 7, py + 7, 85.5, 90.5, S["slot"], "Air intake slot", rotz=a, skin=True)
+    for side, a in (("front", 0), ("rear", 180)):
+        px, py = 41.2 * math.cos(math.radians(a)), 41.2 * math.sin(math.radians(a))
+        for j, z in enumerate((124, 129.5, 135, 140.5)):
+            box("exhaust_slot_%s_%d" % (side, j + 1), "shell", px - 0.9, px + 0.9, py - 18, py + 18, z, z + 3.5, S["slot"], "Exhaust slot", rotz=a, skin=True)
+    cyl("bulkhead", "shell", 0, 0, 43.0, 82, 84, "#8d99a3", "Bulkhead between battery bay and air path, 2 mm (wires pass through)")
+
+    # ---- fan, heatsink, foam ring, TEC, water plate: fan 92-120, fins 120-145, base 145-150, TEC 150-154, plate 154-162
+    stack(0, 92)
+
+    # ---- water cup, insulation, water
+    cyl("cup_floor", "cup", 0, 0, 37, 162, 165, "#c5ced6", "Cup floor, 3 mm aluminium spreader plate")
+    ring("cup_wall", "cup", 0, 0, 36, 37, 165, 236, "#c5ced6", "Water cup wall, inside diameter 72 mm", 0.55)
+    ring("insulation_sleeve", "cup", 0, 0, 37, 42.5, 165, 236, "#e0c88a", "Foam insulation sleeve, 5.5 mm", 0.4)
+    cyl("water", "water", 0, 0, 36, 165, 233, "#58b4e2", "Water, about 275 mL (68 mm deep)", 0.55)
+
+    # ---- display and buttons on the lid
+    box("oled_1_5in", "display", -22, 16, -19, 19, TOP, TOP + 3.2, "#0b1218", "1.5 inch OLED module, about 38 x 38 mm (on the lid)")
+    box("oled_screen", "display", -19, 13, -16, 16, TOP + 3.2, TOP + 3.4, "#9fe4ff", "OLED screen (128 x 128)")
+    if style == "classic":
+        for nm, (x0, x1, y0, y1) in (("a", (-25, 19, -22, -19)), ("b", (-25, 19, 19, 22)), ("c", (-25, -22, -19, 19)), ("d", (16, 19, -19, 19))):
+            box("oled_bezel_%s" % nm, "display", x0, x1, y0, y1, TOP, TOP + 3.6, S["accent"], "Brass bezel around the display", metal=S["brass"])
+    for sy in (-8, 8):
+        cyl("button_%s" % ("1" if sy < 0 else "2"), "display", 25, sy, 3.6 if style == "classic" else 3.2, TOP, TOP + 3.2, S["btn"],
+            "Push button (GPIO32 / GPIO33)", metal=S["brass"])
+
+    # ---- carry loop: a strap (classic) or a slim aluminium bail (modern), made of short straight pieces
+    if style == "classic":
+        R, Wd, T, n, X0, Z0, hc = 20.0, 14.0, 3.0, 12, 32.0, 250.5, S["handle"]
+        label = "Leather carry strap, 14 mm wide"
+    else:
+        R, Wd, T, n, X0, Z0, hc = 24.0, 8.0, 3.0, 16, 30.0, 250.5, S["handle"]
+        label = "Aluminium carry loop, 8 mm wide"
+    step = 180.0 / n
+    seg = 2 * R * math.sin(math.radians(step / 2)) + 0.6
+    for i in range(n):
+        th = step / 2 + step * i
+        py, pz = R * math.cos(math.radians(th)), Z0 + R * math.sin(math.radians(th))
+        box("handle_%02d" % (i + 1), "handle", X0 - Wd / 2, X0 + Wd / 2, py - seg / 2, py + seg / 2, pz - T / 2, pz + T / 2, hc, label,
+            rotx=th - 90, metal=S["handle_metal"])
+    for sy in (-1, 1):
+        box("handle_mount_%s" % ("L" if sy < 0 else "R"), "handle", X0 - Wd / 2 - 1, X0 + Wd / 2 + 1, min(sy * (R - 3), sy * (R + 3)), max(sy * (R - 3), sy * (R + 3)),
+            249, 253, S["accent"], "Handle mount", metal=S["brass"])
+    hand_top = Z0 + R + T / 2
+
+    # ---- battery bay (3 to 82)
     for ix, cx in enumerate((-21, 0, 21)):
         for iy, cy in enumerate((-10.5, 10.5)):
             cyl("cell_%d%d" % (ix + 1, iy + 1), "elec", cx, cy, 10.5, 4, 74, "#2f8f6f", "21700 cell, 21 x 70 mm (3S2P pack, 6 cells)")
@@ -190,7 +263,7 @@ def build_bottle():
     pex = {"bms_3s": (0, 0, 22), "bts7960": (0, 62, 0), "esp32_30pin": (0, -62, 0), "buck_12v_5v": (0, -62, 18)}
     for p in P:
         p["ex"] = list(pex.get(p["name"], ex[p["grp"]]))
-    return dict(name="bottle", title="Portable bottle", height=TOP + 19, cx=0, cz=134, parts=list(P))
+    return dict(name="bottle_" + style, title=S["title"] + " bottle", height=round(hand_top), cx=0, cz=round(hand_top / 2), parts=list(P))
 
 
 # ================================================================ mesh helpers (OBJ / STL)
@@ -199,16 +272,40 @@ def rot(x, y, cx, cy, deg):
     return cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c
 
 
+def rot3(pt, c, rx, ry, rz):
+    """Rotate pt about centre c: first about X, then Y, then Z (degrees), all about the global axes."""
+    x, y, z = pt[0] - c[0], pt[1] - c[1], pt[2] - c[2]
+    if rx:
+        a = math.radians(rx); y, z = y * math.cos(a) - z * math.sin(a), y * math.sin(a) + z * math.cos(a)
+    if ry:
+        a = math.radians(ry); x, z = x * math.cos(a) + z * math.sin(a), -x * math.sin(a) + z * math.cos(a)
+    if rz:
+        a = math.radians(rz); x, y = x * math.cos(a) - y * math.sin(a), x * math.sin(a) + y * math.cos(a)
+    return (c[0] + x, c[1] + y, c[2] + z)
+
+
 def mesh_of(p):
     """Return (vertices, triangles) with outward counter-clockwise faces."""
     v, t = [], []
     if p["kind"] == "box":
-        cx, cy = (p["x0"] + p["x1"]) / 2, (p["y0"] + p["y1"]) / 2
+        c = ((p["x0"] + p["x1"]) / 2, (p["y0"] + p["y1"]) / 2, (p["z0"] + p["z1"]) / 2)
         for z in (p["z0"], p["z1"]):
             for (x, y) in ((p["x0"], p["y0"]), (p["x1"], p["y0"]), (p["x1"], p["y1"]), (p["x0"], p["y1"])):
-                rx, ry = rot(x, y, cx, cy, p["rotz"])
-                v.append((rx, ry, z))
+                v.append(rot3((x, y, z), c, p.get("rotx", 0), p.get("roty", 0), p["rotz"]))
         t += [(0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7), (0, 1, 5), (0, 5, 4), (1, 2, 6), (1, 6, 5), (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7)]
+    elif p["kind"] == "lathe":
+        pts = [(max(r, 0.01), z) for r, z in p["pts"]]
+        n, m = SEG * 2, len(pts)
+        for (r, z) in pts:
+            for j in range(n):
+                a = 2 * math.pi * j / n
+                v.append((r * math.cos(a), r * math.sin(a), z))
+        for i in range(m):
+            i2 = (i + 1) % m
+            for j in range(n):
+                j2 = (j + 1) % n
+                A, B, C, D = i * n + j, i2 * n + j, i2 * n + j2, i * n + j2
+                t += [(A, D, C), (A, C, B)]
     else:
         r_out = p["r"] if p["kind"] == "cyl" else p["r_out"]
         r_in = 0 if p["kind"] == "cyl" else p["r_in"]
@@ -289,10 +386,14 @@ def write_step(path):
         if p["kind"] == "box":
             s = cq.Workplane("XY").box(p["x1"] - p["x0"], p["y1"] - p["y0"], p["z1"] - p["z0"], centered=False)
             s = s.translate((p["x0"], p["y0"], p["z0"]))
-            if p["rotz"]:
-                s = s.rotate(((p["x0"] + p["x1"]) / 2, (p["y0"] + p["y1"]) / 2, 0), ((p["x0"] + p["x1"]) / 2, (p["y0"] + p["y1"]) / 2, 1), p["rotz"])
+            c = ((p["x0"] + p["x1"]) / 2, (p["y0"] + p["y1"]) / 2, (p["z0"] + p["z1"]) / 2)
+            for ang, axis in ((p.get("rotx", 0), (1, 0, 0)), (p.get("roty", 0), (0, 1, 0)), (p["rotz"], (0, 0, 1))):
+                if ang:
+                    s = s.rotate(c, (c[0] + axis[0], c[1] + axis[1], c[2] + axis[2]), ang)
         elif p["kind"] == "cyl":
             s = cq.Workplane("XY").workplane(offset=p["z0"]).center(p["cx"], p["cy"]).circle(p["r"]).extrude(p["z1"] - p["z0"])
+        elif p["kind"] == "lathe":
+            s = cq.Workplane("XZ").polyline([tuple(q) for q in p["pts"]]).close().revolve(360, (0, 0, 0), (0, 1, 0))
         else:
             s = cq.Workplane("XY").workplane(offset=p["z0"]).center(p["cx"], p["cy"]).circle(p["r_out"]).circle(p["r_in"]).extrude(p["z1"] - p["z0"])
         r, g, b = hex_rgb(p["color"])
@@ -305,7 +406,7 @@ def write_blender(path):
     code = '''# ThermoX layout draft. In Blender: Scripting tab > Open this file > Run Script. Units are millimetres.
 # Written to be simple, but not tested inside Blender here. If it errors, File > Import > Wavefront (.obj) with
 # thermox_assembly.obj gives the same parts.
-import bpy, math, json
+import bpy, bmesh, math, json
 
 PARTS = json.loads(r\'\'\'%s\'\'\')
 
@@ -352,7 +453,20 @@ for p in PARTS:
         o = bpy.context.active_object
         o.scale = (p["x1"] - p["x0"], p["y1"] - p["y0"], p["z1"] - p["z0"])
         o.location = ((p["x0"] + p["x1"]) / 2, (p["y0"] + p["y1"]) / 2, (p["z0"] + p["z1"]) / 2)
-        o.rotation_euler[2] = math.radians(p["rotz"])
+        o.rotation_euler = (math.radians(p.get("rotx", 0)), math.radians(p.get("roty", 0)), math.radians(p["rotz"]))
+    elif p["kind"] == "lathe":
+        bm = bmesh.new()
+        vs = [bm.verts.new((max(r, 0.01), 0, z)) for r, z in p["pts"]]
+        es = [bm.edges.new((vs[i], vs[(i + 1) %% len(vs)])) for i in range(len(vs))]
+        bmesh.ops.spin(bm, geom=vs + es, cent=(0, 0, 0), axis=(0, 0, 1), angle=2 * math.pi, steps=96)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.005)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        me = bpy.data.meshes.new(p["name"])
+        bm.to_mesh(me)
+        bm.free()
+        o = bpy.data.objects.new(p["name"], me)
+        bpy.context.collection.objects.link(o)
+        bpy.context.view_layer.objects.active = o
     elif p["kind"] == "cyl":
         bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=p["r"], depth=p["z1"] - p["z0"])
         o = bpy.context.active_object
@@ -384,7 +498,7 @@ print("ThermoX layout draft built:", len(PARTS), "parts")
 
 
 def write_viewer_data(path, designs):
-    keep = ("name", "kind", "grp", "color", "alpha", "rotz", "edges", "label", "ex", "x0", "x1", "y0", "y1", "z0", "z1", "cx", "cy", "r", "r_in", "r_out")
+    keep = ("name", "kind", "grp", "color", "alpha", "rotz", "rotx", "roty", "edges", "skin", "metal", "label", "ex", "pts", "x0", "x1", "y0", "y1", "z0", "z1", "cx", "cy", "r", "r_in", "r_out")
     out = {}
     for d in designs:
         out[d["name"]] = dict(title=d["title"], height=d["height"], cx=d["cx"], cz=d["cz"],
@@ -395,7 +509,7 @@ def write_viewer_data(path, designs):
 def overlaps():
     """Report axis-aligned overlaps between solid (non-shell) boxes so mistakes show up."""
     bad = []
-    boxes = [p for p in P if p["kind"] == "box" and p["rotz"] == 0 and p["grp"] != "shell"]
+    boxes = [p for p in P if p["kind"] == "box" and not (p["rotz"] or p.get("rotx") or p.get("roty")) and p["grp"] != "shell"]
     for i in range(len(boxes)):
         for j in range(i + 1, len(boxes)):
             a, b = boxes[i], boxes[j]
@@ -418,9 +532,25 @@ def reach(p):
     return math.hypot(p["cx"], p["cy"]) + (p["r"] if p["kind"] == "cyl" else p["r_out"])
 
 
+def clearance_report():
+    """For the bottle: how far every inside part stays from the inside of the wall (mm). Negative would mean a clash."""
+    worst = (1e9, "")
+    for p in P:
+        if p["grp"] in ("shell", "lid", "display", "handle"):                 # wall, lid, trim and the bulkhead that touches the wall on purpose
+            continue
+        if p["kind"] == "lathe":
+            continue
+        z0, z1 = p["z0"], p["z1"]
+        if z1 < 3 or z0 > 236:
+            continue
+        gap = skin_inner(max(z0, 3), min(z1, 236)) - reach(p)
+        worst = min(worst, (gap, p["name"]))
+    return worst
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    designs = [build_box(), build_bottle()]
+    designs = [build_bottle("classic"), build_bottle("modern"), build_box()]
     for d in designs:
         P[:] = d["parts"]
         sub = os.path.join(OUT, d["name"])
@@ -434,9 +564,8 @@ if __name__ == "__main__":
         except Exception as e:                              # cadquery missing is fine
             step = "STEP skipped: " + repr(e)[:80]
         extra = ""
-        if d["name"] == "bottle":
-            inner = [p for p in P if p["grp"] not in ("shell", "lid", "display", "handle") and p["name"] != "bulkhead"]
-            far = max(((reach(p), p["name"]) for p in inner if p["name"] not in ("insulation_sleeve", "cup_wall", "cup_floor")), default=(0, ""))
-            extra = " | farthest inner part from axis: %.1f mm (%s), inner radius 43.5" % far
-        print("%-7s parts: %d | box overlaps: %s | %s%s" % (d["name"], len(P), overlaps(), step, extra))
+        if d["name"].startswith("bottle"):
+            gap, who = clearance_report()
+            extra = " | tightest inside clearance: %.1f mm (%s)" % (gap, who)
+        print("%-15s parts: %d | box overlaps: %s | %s%s" % (d["name"], len(P), overlaps(), step, extra))
     write_viewer_data(os.path.join(OUT, "viewer_parts.json"), designs)
