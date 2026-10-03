@@ -86,10 +86,11 @@ def build_box():
 
     # ---------------------------------------------------------------- SUNON fan 40 x 40 x 28 under the heatsink
     FRAME = "#3a4650"
-    box("fan_frame_a", "fan", 17.5, 57.5, -20, -17, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
-    box("fan_frame_b", "fan", 17.5, 57.5, 17, 20, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
-    box("fan_frame_c", "fan", 17.5, 20.5, -17, 17, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
-    box("fan_frame_d", "fan", 54.5, 57.5, -17, 17, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
+    FL = "SUNON fan frame, 40 x 40 x 28 mm"
+    box("fan_frame_a", "fan", 17.5, 57.5, -20, -17, 5, 33, FRAME, FL)
+    box("fan_frame_b", "fan", 17.5, 57.5, 17, 20, 5, 33, FRAME, FL)
+    box("fan_frame_c", "fan", 17.5, 20.5, -17, 17, 5, 33, FRAME, FL)
+    box("fan_frame_d", "fan", 54.5, 57.5, -17, 17, 5, 33, FRAME, FL)
     cyl("fan_hub", "fan", 37.5, 0, 8, 6, 32, "#7b8791", "Fan hub")
     for i in range(7):
         a = i * 360.0 / 7
@@ -123,13 +124,14 @@ def build_box():
     return dict(name="box", title="Box layout", height=191, cx=62.5, cz=97, parts=list(P))
 
 
-def stack(cx, z0, tag=""):
+def stack(cx, z0, flip=False):
     """Fan, copper heatsink (fins run X to X), foam ring, TEC and water plate, bottom to top from z0."""
     FRAME = "#3a4650"
-    box("fan_frame_a", "fan", cx - 20, cx + 20, -20, -17, z0, z0 + 28, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
-    box("fan_frame_b", "fan", cx - 20, cx + 20, 17, 20, z0, z0 + 28, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
-    box("fan_frame_c", "fan", cx - 20, cx - 17, -17, 17, z0, z0 + 28, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
-    box("fan_frame_d", "fan", cx + 17, cx + 20, -17, 17, z0, z0 + 28, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
+    FL = "SUNON fan frame, 40 x 40 x 28 mm" + (" (mounted upside down, so it draws air down out of the fins)" if flip else "")
+    box("fan_frame_a", "fan", cx - 20, cx + 20, -20, -17, z0, z0 + 28, FRAME, FL)
+    box("fan_frame_b", "fan", cx - 20, cx + 20, 17, 20, z0, z0 + 28, FRAME, FL)
+    box("fan_frame_c", "fan", cx - 20, cx - 17, -17, 17, z0, z0 + 28, FRAME, FL)
+    box("fan_frame_d", "fan", cx + 17, cx + 20, -17, 17, z0, z0 + 28, FRAME, FL)
     cyl("fan_hub", "fan", cx, 0, 8, z0 + 1, z0 + 27, "#7b8791", "Fan hub")
     for i in range(7):
         a = i * 360.0 / 7
@@ -177,9 +179,12 @@ def skin_inner(z0, z1):
     return best
 
 
-def build_bottle(style):
-    """Portable bottle, 92 mm at the widest and 252 mm tall. Waisted body, domed lid, trim bands, carry loop."""
+def build_bottle(style, flow="push"):
+    """Portable bottle, 92 mm at the widest and 252 mm tall. Waisted body, domed lid, trim bands, carry loop.
+    flow="push": air in at the bottom ring, up through the fan, out of the fins at the sides.
+    flow="pull": the fan is turned over; air in at the side slots, drawn through the fins and down, out at the bottom ring."""
     S = STYLES[style]
+    pull = flow == "pull"
     P.clear()
     # ---- outer skin (hollow lathe walls, 1.5 mm)
     lathe("base_pad", "shell", [(0, 0), (40, 0), (43, 1.8), (44.2, 3), (0, 3)], S["base"], "Rubber base pad, 3 mm (non-slip)", skin=True)
@@ -201,18 +206,22 @@ def build_bottle(style):
             S["accent"], "Strap lug for a shoulder strap", skin=True, metal=S["brass"])
 
     # ---- air slots (dark markers on the wall)
-    for k in range(8):
-        a = 22.5 + 45 * k
+    if pull:
+        ring_n, ring_w, ring_lbl, side_lbl = 12, 17, "Air exhaust slot (hot air leaves here)", "Air intake slot (cool air is drawn in here)"
+    else:
+        ring_n, ring_w, ring_lbl, side_lbl = 8, 14, "Air intake slot", "Exhaust slot"
+    for k in range(ring_n):
+        a = 360.0 / ring_n / 2 + 360.0 / ring_n * k
         px, py = 44.1 * math.cos(math.radians(a)), 44.1 * math.sin(math.radians(a))
-        box("intake_slot_%d" % (k + 1), "shell", px - 0.9, px + 0.9, py - 7, py + 7, 85.5, 90.5, S["slot"], "Air intake slot", rotz=a, skin=True)
+        box("%s_slot_%d" % ("exhaust" if pull else "intake", k + 1), "shell", px - 0.9, px + 0.9, py - ring_w / 2, py + ring_w / 2, 85.5, 90.5, S["slot"], ring_lbl, rotz=a, skin=True)
     for side, a in (("front", 0), ("rear", 180)):
         px, py = 41.2 * math.cos(math.radians(a)), 41.2 * math.sin(math.radians(a))
         for j, z in enumerate((124, 129.5, 135, 140.5)):
-            box("exhaust_slot_%s_%d" % (side, j + 1), "shell", px - 0.9, px + 0.9, py - 18, py + 18, z, z + 3.5, S["slot"], "Exhaust slot", rotz=a, skin=True)
+            box("%s_slot_%s_%d" % ("intake" if pull else "exhaust", side, j + 1), "shell", px - 0.9, px + 0.9, py - 18, py + 18, z, z + 3.5, S["slot"], side_lbl, rotz=a, skin=True)
     cyl("bulkhead", "shell", 0, 0, 43.0, 82, 84, "#8d99a3", "Bulkhead between battery bay and air path, 2 mm (wires pass through)")
 
     # ---- fan, heatsink, foam ring, TEC, water plate: fan 92-120, fins 120-145, base 145-150, TEC 150-154, plate 154-162
-    stack(0, 92)
+    stack(0, 92, flip=pull)
 
     # ---- water cup, insulation, water
     cyl("cup_floor", "cup", 0, 0, 37, 162, 165, "#c5ced6", "Cup floor, 3 mm aluminium spreader plate")
@@ -263,7 +272,27 @@ def build_bottle(style):
     pex = {"bms_3s": (0, 0, 22), "bts7960": (0, 62, 0), "esp32_30pin": (0, -62, 0), "buck_12v_5v": (0, -62, 18)}
     for p in P:
         p["ex"] = list(pex.get(p["name"], ex[p["grp"]]))
-    return dict(name="bottle_" + style, title=S["title"] + " bottle", height=round(hand_top), cx=0, cz=round(hand_top / 2), parts=list(P))
+    # ---- airflow arrows for the viewer only: [origin x, y, z, direction x, y, z, length, "in"/"out"]
+    arrows = []
+    def radial(a_deg, r0, z, length, inward):
+        c, sn = math.cos(math.radians(a_deg)), math.sin(math.radians(a_deg))
+        d = -1 if inward else 1
+        arrows.append([r0 * c, r0 * sn, z, d * c, d * sn, 0, length, "in" if inward else "out"])
+    if pull:
+        for a in (0, 180):
+            radial(a, 64, 132.5, 36, True)                  # cool air in through the fin-level slots
+        arrows.append([0, 0, 121, 0, 0, -1, 28, "out"])      # drawn down through the turned-over fan
+        for k in range(12):
+            radial(15 + 30 * k, 40, 88, 20, False)          # warm air out of the lower ring
+    else:
+        for k in range(8):
+            radial(22.5 + 45 * k, 62, 88, 18, True)         # cool air in through the lower ring
+        arrows.append([0, 0, 93, 0, 0, 1, 28, "in"])         # blown up through the fan
+        for a in (0, 180):
+            radial(a, 24, 132.5, 36, False)                 # warm air out of the fin-level slots
+    name = "bottle_" + style + ("_pull" if pull else "")
+    return dict(name=name, title=S["title"] + " bottle" + (", pull fan" if pull else ""), height=round(hand_top), cx=0, cz=round(hand_top / 2),
+                parts=list(P), flow=arrows)
 
 
 # ================================================================ mesh helpers (OBJ / STL)
@@ -501,7 +530,7 @@ def write_viewer_data(path, designs):
     keep = ("name", "kind", "grp", "color", "alpha", "rotz", "rotx", "roty", "edges", "skin", "metal", "label", "ex", "pts", "x0", "x1", "y0", "y1", "z0", "z1", "cx", "cy", "r", "r_in", "r_out")
     out = {}
     for d in designs:
-        out[d["name"]] = dict(title=d["title"], height=d["height"], cx=d["cx"], cz=d["cz"],
+        out[d["name"]] = dict(title=d["title"], height=d["height"], cx=d["cx"], cz=d["cz"], flow=d.get("flow", []),
                               parts=[{k: p[k] for k in keep if k in p} for p in d["parts"]])
     open(path, "w").write(json.dumps(out, separators=(",", ":")))
 
@@ -550,7 +579,7 @@ def clearance_report():
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    designs = [build_bottle("classic"), build_bottle("modern"), build_box()]
+    designs = [build_bottle("classic"), build_bottle("classic", "pull"), build_bottle("modern"), build_bottle("modern", "pull"), build_box()]
     for d in designs:
         P[:] = d["parts"]
         sub = os.path.join(OUT, d["name"])

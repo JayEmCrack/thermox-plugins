@@ -1,0 +1,460 @@
+newmtl m_base_pad
+Kd 0.059 0.067 0.075
+d 1.00
+
+newmtl m_body_lower
+Kd 0.169 0.188 0.212
+d 1.00
+
+newmtl m_body_waist
+Kd 0.235 0.267 0.298
+d 1.00
+
+newmtl m_body_upper
+Kd 0.169 0.188 0.212
+d 1.00
+
+newmtl m_lid_dome
+Kd 0.114 0.129 0.145
+d 1.00
+
+newmtl m_trim_band_1
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_trim_band_2
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_trim_band_3
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_grip_rib_1
+Kd 0.078 0.090 0.102
+d 1.00
+
+newmtl m_grip_rib_2
+Kd 0.078 0.090 0.102
+d 1.00
+
+newmtl m_grip_rib_3
+Kd 0.078 0.090 0.102
+d 1.00
+
+newmtl m_grip_rib_4
+Kd 0.078 0.090 0.102
+d 1.00
+
+newmtl m_grip_rib_5
+Kd 0.078 0.090 0.102
+d 1.00
+
+newmtl m_grip_rib_6
+Kd 0.078 0.090 0.102
+d 1.00
+
+newmtl m_grip_rib_7
+Kd 0.078 0.090 0.102
+d 1.00
+
+newmtl m_grip_rib_8
+Kd 0.078 0.090 0.102
+d 1.00
+
+newmtl m_grip_rib_9
+Kd 0.078 0.090 0.102
+d 1.00
+
+newmtl m_nameplate
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_strap_lug_L
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_strap_lug_R
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_exhaust_slot_1
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_2
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_3
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_4
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_5
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_6
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_7
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_8
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_9
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_10
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_11
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_12
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_front_1
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_front_2
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_front_3
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_front_4
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_rear_1
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_rear_2
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_rear_3
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_rear_4
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_bulkhead
+Kd 0.553 0.600 0.639
+d 1.00
+
+newmtl m_fan_frame_a
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_fan_frame_b
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_fan_frame_c
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_fan_frame_d
+Kd 0.227 0.275 0.314
+d 1.00
+
+newmtl m_fan_hub
+Kd 0.482 0.529 0.569
+d 1.00
+
+newmtl m_fan_blade_1
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_2
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_3
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_4
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_5
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_6
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fan_blade_7
+Kd 0.596 0.643 0.678
+d 1.00
+
+newmtl m_fin_01
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_02
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_03
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_04
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_05
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_06
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_07
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_08
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_09
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_10
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_11
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_12
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_13
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_14
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_15
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_16
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_fin_17
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_heatsink_base
+Kd 0.788 0.541 0.369
+d 1.00
+
+newmtl m_foam_ring_a
+Kd 0.878 0.784 0.541
+d 1.00
+
+newmtl m_foam_ring_b
+Kd 0.878 0.784 0.541
+d 1.00
+
+newmtl m_foam_ring_c
+Kd 0.878 0.784 0.541
+d 1.00
+
+newmtl m_foam_ring_d
+Kd 0.878 0.784 0.541
+d 1.00
+
+newmtl m_tec_hot_face
+Kd 0.910 0.455 0.231
+d 1.00
+
+newmtl m_tec_body
+Kd 0.925 0.937 0.945
+d 1.00
+
+newmtl m_tec_cold_face
+Kd 0.239 0.624 0.839
+d 1.00
+
+newmtl m_water_plate
+Kd 0.725 0.761 0.788
+d 1.00
+
+newmtl m_cup_floor
+Kd 0.773 0.808 0.839
+d 1.00
+
+newmtl m_cup_wall
+Kd 0.773 0.808 0.839
+d 0.55
+
+newmtl m_insulation_sleeve
+Kd 0.878 0.784 0.541
+d 0.40
+
+newmtl m_water
+Kd 0.345 0.706 0.886
+d 0.55
+
+newmtl m_oled_1_5in
+Kd 0.043 0.071 0.094
+d 1.00
+
+newmtl m_oled_screen
+Kd 0.624 0.894 1.000
+d 1.00
+
+newmtl m_button_1
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_button_2
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_handle_01
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_02
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_03
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_04
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_05
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_06
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_07
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_08
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_09
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_10
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_11
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_12
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_13
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_14
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_15
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_16
+Kd 0.765 0.792 0.820
+d 1.00
+
+newmtl m_handle_mount_L
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_handle_mount_R
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_cell_11
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_cell_12
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_cell_21
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_cell_22
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_cell_31
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_cell_32
+Kd 0.184 0.561 0.435
+d 1.00
+
+newmtl m_bms_3s
+Kd 0.247 0.435 0.604
+d 1.00
+
+newmtl m_bts7960
+Kd 0.118 0.353 0.659
+d 1.00
+
+newmtl m_esp32_30pin
+Kd 0.114 0.165 0.200
+d 1.00
+
+newmtl m_buck_12v_5v
+Kd 0.239 0.498 0.604
+d 1.00
+
