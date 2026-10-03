@@ -44,3 +44,24 @@ Then mark PR #1 "Ready for review" on GitHub (button at the bottom of the PR pag
 
 ## Optional safety suggestion
 Enable the ESP32 task watchdog in `setup()` and feed it in `loop()`, so a hung control loop cannot leave the Peltier driven.
+
+## One run per press, full power (patch)
+`patches/one-shot-full-power.patch` changes the firmware (`ThermoX/ThermoX.ino` and `ThermoX/README.md`) so that:
+- a button press starts one run toward the target at full Peltier power (no taper, no hysteresis band);
+- at the target the Peltier and fan switch off and stay off, even if the temperature drifts, until the next press;
+- nothing starts at power-up (OLED shows READY, then REACHED after a run);
+- the 60 s hot/cold reversal rest and all fault cutoffs are unchanged, and the log `MODE=` values are unchanged
+  (still `HEATING`, `COOLING`, `IDLE`, `FAULT`), so `dashboard/api/log.php` keeps accepting every line.
+
+Apply it on the PR #1 branch, after the steps above:
+
+```bash
+git apply --check patches/one-shot-full-power.patch && git apply patches/one-shot-full-power.patch
+git add ThermoX && git commit -m "One run per button press at full power"
+git push origin claude/magical-gauss-sl1l1s
+```
+
+Checked on a computer by compiling the changed sketch against stub Arduino headers (no new warnings) and running its real `control()` code
+against a mock board and a simple water model: no start at power-up, full duty on one side only, stop at target, no restart after
+a +5 °C or -4 °C drift, reversal rest then heat, direction change mid-run, press before the first sensor reading, and the sensor,
+fan-stall and over-temperature faults. It has not been compiled for the ESP32 or run on hardware.
