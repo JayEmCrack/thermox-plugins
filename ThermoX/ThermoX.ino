@@ -6,7 +6,9 @@
   Behaviour (per Chapters I-III):
    - User sets target 20..50 C in 1 C steps with two buttons (B1 = down, B2 = up)
    - DS18B20 measures water temp; BTS7960 drives one TEC1-12706 in either direction
-   - Below target - hysteresis -> HEAT ; above target + hysteresis -> COOL ; else IDLE
+   - A button press starts ONE run toward the target: HEAT or COOL at full power until it is reached
+   - At the target the Peltier and fan switch off (IDLE) and stay off, even if the water then
+     drifts, until the next button press. Nothing starts by itself at power-up either.
    - Hot <-> cold reversal is blocked for REVERSE_COOLDOWN_MS (60 s) with the Peltier off
    - Fan: full duty in COOL, ~50 % in HEAT, off when idle (only the OLED stays on)
    - SH1107 128x128 OLED shows water temp, target, mode, fan RPM, battery
@@ -41,12 +43,10 @@ constexpr float   BATT_FULL_V  = 4.15f;
 
 // ---------------- Tunables ----------------
 constexpr float TARGET_MIN = 20.0f, TARGET_MAX = 50.0f, TARGET_DEFAULT = 25.0f;
-constexpr float HYSTERESIS = 0.5f;           // C
+constexpr float START_BAND_C = 0.5f;         // C, a press within this band of the target counts as already reached
 constexpr float OVERTEMP_CUTOFF = 55.0f;     // C, hard stop
 constexpr float UNDERTEMP_CUTOFF = 5.0f;     // C, hard stop (freezing)
-constexpr float DUTY_TAPER_C = 5.0f;         // full power until within this band of target
-constexpr uint8_t TEC_MAX_DUTY = 255;        // lower to limit current/battery draw
-constexpr uint8_t TEC_MIN_DUTY = 90;         // below this the TEC does little useful work
+constexpr uint8_t TEC_MAX_DUTY = 255;        // every run is at this duty; lower to limit current/battery draw
 constexpr bool    HEAT_ON_RPWM = true;       // swap if your wiring heats on LPWM instead
 constexpr uint32_t REVERSE_COOLDOWN_MS = 60000; // Peltier must rest this long (off) before the direction reverses
 constexpr uint32_t FAN_RUNON_MS = 0;         // fan run-on after TEC stops; 0 = fan off immediately
@@ -78,6 +78,9 @@ Mode mode = IDLE; Fault fault = F_NONE;
 uint8_t tecDuty = 0, fanDuty = 0;
 uint32_t lastGoodRead = 0, lastTecActive = 0, modeSince = 0, fanOnSince = 0;
 Mode lastDriven = IDLE;                      // last direction the Peltier was driven in
+Mode runDir = IDLE;                          // direction of the run in progress (IDLE = no run)
+bool newRun = false;                         // a button was pressed: pick the direction on the next pass
+bool reached = false;                        // last run finished at the target (display only)
 uint16_t waitLeftS = 0;                      // seconds left of the reversal cooldown (0 = none)
 volatile uint32_t tachPulses = 0;
 uint16_t fanRpm = 0;
@@ -146,8 +149,8 @@ bool btnStep(Btn& b) {           // true on press and on 150 ms auto-repeat afte
 }
 
 void handleButtons() {
-  if (btnStep(bDown)) targetC = max(TARGET_MIN, targetC - 1.0f);
-  if (btnStep(bUp))   targetC = min(TARGET_MAX, targetC + 1.0f);
+  if (btnStep(bDown)) { targetC = max(TARGET_MIN, targetC - 1.0f); newRun = true; }
+  if (btnStep(bUp))   { targetC = min(TARGET_MAX, targetC + 1.0f); newRun = true; }
 }
 
 // ---------------- Control ----------------
@@ -161,11 +164,18 @@ void control() {
   if (waterC >= OVERTEMP_CUTOFF)  { enterFault(F_OVERTEMP);  return; }
   if (waterC <= UNDERTEMP_CUTOFF) { enterFault(F_UNDERTEMP); return; }
 
-  Mode want = mode;
-  if (waterC < targetC - HYSTERESIS)      want = HEAT;
-  else if (waterC > targetC + HYSTERESIS) want = COOL;
-  else if (mode == HEAT && waterC >= targetC) want = IDLE;
-  else if (mode == COOL && waterC <= targetC) want = IDLE;
+  // One run per button press. The direction is chosen when the press is handled; the run then
+  // goes at full power until the water crosses the target. After that nothing restarts by itself,
+  // however far the temperature drifts, until the next press.
+  if (newRun && !isnan(waterC)) {
+    newRun = false; reached = false;
+    if (waterC < targetC - START_BAND_C)      runDir = HEAT;
+    else if (waterC > targetC + START_BAND_C) runDir = COOL;
+    else { runDir = IDLE; reached = true; }        // already at the target
+  } else if ((runDir == HEAT && waterC >= targetC) || (runDir == COOL && waterC <= targetC)) {
+    runDir = IDLE; reached = true;
+  }
+  Mode want = runDir;
 
   // Never flip hot <-> cold quickly: after driving one way the Peltier stays OFF until
   // REVERSE_COOLDOWN_MS has passed since it last ran, then it may start the other way.
@@ -181,10 +191,7 @@ void control() {
     tecStop();
     setFan((now - lastTecActive < FAN_RUNON_MS) ? 128 : 0);
   } else {
-    float err = fabsf(waterC - targetC);
-    uint8_t d = (err >= DUTY_TAPER_C) ? TEC_MAX_DUTY
-                : (uint8_t)(TEC_MIN_DUTY + (TEC_MAX_DUTY - TEC_MIN_DUTY) * (err / DUTY_TAPER_C));
-    tecDrive(mode, min<uint8_t>(d, TEC_MAX_DUTY));
+    tecDrive(mode, TEC_MAX_DUTY);
     setFan(mode == COOL ? 255 : 128);            // full in cooling, ~50 % in heating
     lastTecActive = now; lastDriven = mode;
   }
@@ -221,6 +228,7 @@ void drawUI() {
   snprintf(b, sizeof b, "Set: %.0f C", targetC); oled.drawStr(8, 84, b);
   if (mode == FAULT) oled.drawStr(8, 102, FAULT_TXT[fault]);
   else if (waitLeftS) { snprintf(b, sizeof b, "WAIT %us", waitLeftS); oled.drawStr(8, 102, b); }
+  else if (mode == IDLE) oled.drawStr(8, 102, reached ? "REACHED" : "READY");
   else oled.drawStr(8, 102, MODE_TXT[mode]);
 
   oled.setFont(u8g2_font_6x12_tr);
@@ -232,7 +240,7 @@ void drawUI() {
 // ---------------- Logging ----------------
 // One line per sample, read by receiver/receiver.py and stored via the PHP API:
 //   TEMP=28.40,TARGET=18.0,MODE=COOLING,PELTIER=1,FAN=1[,BATTERY=12.10]
-// MODE is HEATING, COOLING, IDLE (inside the hysteresis band) or FAULT.
+// MODE is HEATING, COOLING, IDLE (ready, or target reached and waiting for the next press) or FAULT.
 // BATTERY is only sent when battery sensing is really enabled.
 void logData() {
   static uint32_t t0 = 0;
