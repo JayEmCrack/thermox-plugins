@@ -65,3 +65,8 @@ Checked on a computer by compiling the changed sketch against stub Arduino heade
 against a mock board and a simple water model: no start at power-up, full duty on one side only, stop at target, no restart after
 a +5 °C or -4 °C drift, reversal rest then heat, direction change mid-run, press before the first sensor reading, and the sensor,
 fan-stall and over-temperature faults. It has not been compiled for the ESP32 or run on hardware.
+
+## Ready-made files (no git needed)
+`updated-firmware/ThermoX/ThermoX.ino` and `updated-firmware/ThermoX/README.md` are the full PR #1 files with the patch above already applied.
+Open `updated-firmware/ThermoX/ThermoX.ino` in the Arduino IDE to flash it, or copy both files over `ThermoX/ThermoX.ino` and
+`ThermoX/README.md` on the PR #1 branch. The folder is named `ThermoX` so the Arduino IDE accepts it. Delete `updated-firmware/` once PR #1 contains these changes.
