@@ -27,82 +27,170 @@ def ring(name, grp, cx, cy, r_in, r_out, z0, z1, color, label=None, alpha=1.0):
                   alpha=alpha, rotz=0.0, edges=False, label=label or name))
 
 
-# ---------------------------------------------------------------- shell (5 mm feet, 1.5 mm walls)
-W = 1.5
-GLASS = "#9db3c2"
-box("shell_front_wall", "shell", 0, W, -37.5, 37.5, 5, 191, GLASS, "Shell, front wall with exhaust slots", 0.14, edges=True)
-box("shell_side_L", "shell", 0, 75, -37.5, -37.5 + W, 5, 191, GLASS, "Shell, side wall", 0.14, edges=True)
-box("shell_side_R", "shell", 0, 75, 37.5 - W, 37.5, 5, 191, GLASS, "Shell, side wall", 0.14, edges=True)
-box("shell_divider", "shell", 75 - W, 75, -37.5, 37.5, 5, 191, GLASS, "Wall between water column and electronics", 0.14, edges=True)
-for i, (fx, fy) in enumerate([(0, -37.5), (0, 27.5), (65, -37.5), (65, 27.5)]):
-    box("foot_%d" % (i + 1), "shell", fx, fx + 10, fy, fy + 10, 0, 5, "#3a4650", "Foot, 10 x 10 x 5 mm (air gets in under the fan)")
-box("back_side_L", "shell", 75, 125, -37.5, -37.5 + W, 0, 191, GLASS, "Shell, electronics column side wall", 0.14, edges=True)
-box("back_side_R", "shell", 75, 125, 37.5 - W, 37.5, 0, 191, GLASS, "Shell, electronics column side wall", 0.14, edges=True)
-box("back_rear_wall", "shell", 125 - W, 125, -37.5, 37.5, 0, 191, GLASS, "Shell, rear wall", 0.14, edges=True)
-box("back_bottom", "shell", 75, 125, -37.5, 37.5, 0, W, GLASS, "Shell, electronics column floor", 0.3, edges=True)
-box("back_top_panel", "shell", 75, 125, -37.5, 37.5, 185.4, 191, "#dde4e9", "Top panel of the electronics column, 5.6 mm", 0.9)
-for k, z in enumerate((53.4, 48.4, 43.4, 38.4)):
-    box("exhaust_slot_%d" % (k + 1), "shell", -0.1, 0.6, -20, 20, z, z + 2.6, "#101820", "Exhaust slot, 40 x 2.6 mm")
+def build_box():
+    """Box layout: water column in front, electronics column behind (125 x 75 x 191 mm)."""
+    P.clear()
+    # ---------------------------------------------------------------- shell (5 mm feet, 1.5 mm walls)
+    W = 1.5
+    GLASS = "#9db3c2"
+    box("shell_front_wall", "shell", 0, W, -37.5, 37.5, 5, 191, GLASS, "Shell, front wall with exhaust slots", 0.14, edges=True)
+    box("shell_side_L", "shell", 0, 75, -37.5, -37.5 + W, 5, 191, GLASS, "Shell, side wall", 0.14, edges=True)
+    box("shell_side_R", "shell", 0, 75, 37.5 - W, 37.5, 5, 191, GLASS, "Shell, side wall", 0.14, edges=True)
+    box("shell_divider", "shell", 75 - W, 75, -37.5, 37.5, 5, 191, GLASS, "Wall between water column and electronics", 0.14, edges=True)
+    for i, (fx, fy) in enumerate([(0, -37.5), (0, 27.5), (65, -37.5), (65, 27.5)]):
+        box("foot_%d" % (i + 1), "shell", fx, fx + 10, fy, fy + 10, 0, 5, "#3a4650", "Foot, 10 x 10 x 5 mm (air gets in under the fan)")
+    box("back_side_L", "shell", 75, 125, -37.5, -37.5 + W, 0, 191, GLASS, "Shell, electronics column side wall", 0.14, edges=True)
+    box("back_side_R", "shell", 75, 125, 37.5 - W, 37.5, 0, 191, GLASS, "Shell, electronics column side wall", 0.14, edges=True)
+    box("back_rear_wall", "shell", 125 - W, 125, -37.5, 37.5, 0, 191, GLASS, "Shell, rear wall", 0.14, edges=True)
+    box("back_bottom", "shell", 75, 125, -37.5, 37.5, 0, W, GLASS, "Shell, electronics column floor", 0.3, edges=True)
+    box("back_top_panel", "shell", 75, 125, -37.5, 37.5, 185.4, 191, "#dde4e9", "Top panel of the electronics column, 5.6 mm", 0.9)
+    for k, z in enumerate((53.4, 48.4, 43.4, 38.4)):
+        box("exhaust_slot_%d" % (k + 1), "shell", -0.1, 0.6, -20, 20, z, z + 2.6, "#101820", "Exhaust slot, 40 x 2.6 mm")
 
-# ---------------------------------------------------------------- lid, cup, insulation, water
-box("lid", "lid", W, 75 - W, -36, 36, 183.4, 191, "#dde4e9", "Removable lid, 72 x 72 x 7.6 mm")
-ring("cup_wall", "cup", 37.5, 0, 30, 31, 77, 183.4, "#c5ced6", "Water cup wall, inside diameter 60 mm (stainless or aluminium)", 0.55)
-cyl("cup_floor", "cup", 37.5, 0, 31, 75, 77, "#c5ced6", "Cup floor, 2 mm")
-ring("insulation_sleeve", "cup", 37.5, 0, 31, 36, 77, 183.4, "#e0c88a", "Foam insulation sleeve, 5 mm", 0.4)
-cyl("water", "water", 37.5, 0, 30, 77, 171, "#58b4e2", "Water, about 300 mL cup filled to 94 mm", 0.55)
+    # ---------------------------------------------------------------- lid, cup, insulation, water
+    box("lid", "lid", W, 75 - W, -36, 36, 183.4, 191, "#dde4e9", "Removable lid, 72 x 72 x 7.6 mm")
+    ring("cup_wall", "cup", 37.5, 0, 30, 31, 77, 183.4, "#c5ced6", "Water cup wall, inside diameter 60 mm (stainless or aluminium)", 0.55)
+    cyl("cup_floor", "cup", 37.5, 0, 31, 75, 77, "#c5ced6", "Cup floor, 2 mm")
+    ring("insulation_sleeve", "cup", 37.5, 0, 31, 36, 77, 183.4, "#e0c88a", "Foam insulation sleeve, 5 mm", 0.4)
+    cyl("water", "water", 37.5, 0, 30, 77, 171, "#58b4e2", "Water, about 300 mL cup filled to 94 mm", 0.55)
 
-# ---------------------------------------------------------------- water plate, foam ring, TEC
-box("water_plate", "thermal", 17.5, 57.5, -20, 20, 67, 75, "#b9c2c9", "Water-side plate, 40 x 40 x 8 mm (aluminium or copper)")
-FOAM = "#e0c88a"
-box("foam_ring_a", "thermal", 12.5, 17.5, -25, 25, 63, 67, FOAM, "Foam ring around the TEC, 4 mm")
-box("foam_ring_b", "thermal", 57.5, 62.5, -25, 25, 63, 67, FOAM, "Foam ring around the TEC, 4 mm")
-box("foam_ring_c", "thermal", 17.5, 57.5, -25, -20, 63, 67, FOAM, "Foam ring around the TEC, 4 mm")
-box("foam_ring_d", "thermal", 17.5, 57.5, 20, 25, 63, 67, FOAM, "Foam ring around the TEC, 4 mm")
-box("tec_hot_face", "thermal", 17.5, 57.5, -20, 20, 63, 64, "#e8743b", "TEC1-12706 40 x 40 x 3.8 mm, heatsink side (hot when cooling)")
-box("tec_body", "thermal", 17.5, 57.5, -20, 20, 64, 65.8, "#eceff1", "TEC1-12706 40 x 40 x 3.8 mm")
-box("tec_cold_face", "thermal", 17.5, 57.5, -20, 20, 65.8, 66.8, "#3d9fd6", "TEC1-12706 40 x 40 x 3.8 mm, water side (cold when cooling)")
+    # ---------------------------------------------------------------- water plate, foam ring, TEC
+    box("water_plate", "thermal", 17.5, 57.5, -20, 20, 67, 75, "#b9c2c9", "Water-side plate, 40 x 40 x 8 mm (aluminium or copper)")
+    FOAM = "#e0c88a"
+    box("foam_ring_a", "thermal", 12.5, 17.5, -25, 25, 63, 67, FOAM, "Foam ring around the TEC, 4 mm")
+    box("foam_ring_b", "thermal", 57.5, 62.5, -25, 25, 63, 67, FOAM, "Foam ring around the TEC, 4 mm")
+    box("foam_ring_c", "thermal", 17.5, 57.5, -25, -20, 63, 67, FOAM, "Foam ring around the TEC, 4 mm")
+    box("foam_ring_d", "thermal", 17.5, 57.5, 20, 25, 63, 67, FOAM, "Foam ring around the TEC, 4 mm")
+    box("tec_hot_face", "thermal", 17.5, 57.5, -20, 20, 63, 64, "#e8743b", "TEC1-12706 40 x 40 x 3.8 mm, heatsink side (hot when cooling)")
+    box("tec_body", "thermal", 17.5, 57.5, -20, 20, 64, 65.8, "#eceff1", "TEC1-12706 40 x 40 x 3.8 mm")
+    box("tec_cold_face", "thermal", 17.5, 57.5, -20, 20, 65.8, 66.8, "#3d9fd6", "TEC1-12706 40 x 40 x 3.8 mm, water side (cold when cooling)")
 
-# ---------------------------------------------------------------- heatsink (copper), fins run front to back
-COPPER = "#c98a5e"
-box("heatsink_base", "heatsink", 12.5, 62.5, -25, 25, 58, 63, COPPER, "Heatsink base, 50 x 50 x 5 mm (proposed, copper)")
-for k in range(17):
-    yc = -24 + 3 * k
-    box("fin_%02d" % (k + 1), "heatsink", 12.5, 62.5, yc - 0.45, yc + 0.45, 33, 58, COPPER, "Heatsink fin, 0.9 mm thick, 25 mm tall, 3 mm pitch")
+    # ---------------------------------------------------------------- heatsink (copper), fins run front to back
+    COPPER = "#c98a5e"
+    box("heatsink_base", "heatsink", 12.5, 62.5, -25, 25, 58, 63, COPPER, "Heatsink base, 50 x 50 x 5 mm (proposed, copper)")
+    for k in range(17):
+        yc = -24 + 3 * k
+        box("fin_%02d" % (k + 1), "heatsink", 12.5, 62.5, yc - 0.45, yc + 0.45, 33, 58, COPPER, "Heatsink fin, 0.9 mm thick, 25 mm tall, 3 mm pitch")
 
-# ---------------------------------------------------------------- SUNON fan 40 x 40 x 28 under the heatsink
-FRAME = "#3a4650"
-box("fan_frame_a", "fan", 17.5, 57.5, -20, -17, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
-box("fan_frame_b", "fan", 17.5, 57.5, 17, 20, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
-box("fan_frame_c", "fan", 17.5, 20.5, -17, 17, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
-box("fan_frame_d", "fan", 54.5, 57.5, -17, 17, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
-cyl("fan_hub", "fan", 37.5, 0, 8, 6, 32, "#7b8791", "Fan hub")
-for i in range(7):
-    a = i * 360.0 / 7
-    cx = 37.5 + 12.25 * math.cos(math.radians(a))
-    cy = 12.25 * math.sin(math.radians(a))
-    box("fan_blade_%d" % (i + 1), "fan", cx - 4.25, cx + 4.25, cy - 0.8, cy + 0.8, 9, 29, "#98a4ad", "Fan blade", rotz=a)
+    # ---------------------------------------------------------------- SUNON fan 40 x 40 x 28 under the heatsink
+    FRAME = "#3a4650"
+    box("fan_frame_a", "fan", 17.5, 57.5, -20, -17, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
+    box("fan_frame_b", "fan", 17.5, 57.5, 17, 20, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
+    box("fan_frame_c", "fan", 17.5, 20.5, -17, 17, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
+    box("fan_frame_d", "fan", 54.5, 57.5, -17, 17, 5, 33, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
+    cyl("fan_hub", "fan", 37.5, 0, 8, 6, 32, "#7b8791", "Fan hub")
+    for i in range(7):
+        a = i * 360.0 / 7
+        cx = 37.5 + 12.25 * math.cos(math.radians(a))
+        cy = 12.25 * math.sin(math.radians(a))
+        box("fan_blade_%d" % (i + 1), "fan", cx - 4.25, cx + 4.25, cy - 0.8, cy + 0.8, 9, 29, "#98a4ad", "Fan blade", rotz=a)
 
-# ---------------------------------------------------------------- electronics column
-box("esp32_30pin", "elec", 79, 93, -14, 14, 130, 182, "#1d2a33", "ESP32 30-pin board, about 52 x 28 mm (standing)")
-box("esp32_usb", "elec", 82, 90, -4, 4, 182, 185, "#aeb7bf", "ESP32 USB port")
-box("buck_12v_5v", "elec", 97, 106, -8.5, 8.5, 160, 182, "#3d7f9a", "12 V to 5 V buck converter, about 22 x 17 mm")
-for ix, cx in enumerate((88.5, 109.5)):
-    for iy, cy in enumerate((-21, 0, 21)):
-        cyl("cell_%d%d" % (ix + 1, iy + 1), "elec", cx, cy, 10.5, 57, 127, "#2f8f6f", "21700 cell, 21 x 70 mm (3S2P pack, 6 cells)")
-box("bms_3s", "elec", 79, 119, -30, 30, 52, 55, "#3f6f9a", "3S battery protection board (BMS), size depends on the part")
-box("bts7960", "elec", 79, 91, -25, 25, 1.5, 49.5, "#1e5aa8", "BTS7960 board without heatsink, about 50 x 50 mm (standing)")
-box("oled_1_5in", "display", 79, 117, -19, 19, 191, 194.2, "#0b1218", "1.5 inch OLED module, about 38 x 38 mm")
-box("oled_screen", "display", 82, 114, -16, 16, 194.2, 194.4, "#9fe4ff", "OLED screen (128 x 128)")
-for sy in (-12, 12):
-    cyl("button_%s" % ("1" if sy < 0 else "2"), "display", 121, sy, 3.2, 191, 194, "#d94f3a", "Push button (GPIO32 / GPIO33)")
+    # ---------------------------------------------------------------- electronics column
+    box("esp32_30pin", "elec", 79, 93, -14, 14, 130, 182, "#1d2a33", "ESP32 30-pin board, about 52 x 28 mm (standing)")
+    box("esp32_usb", "elec", 82, 90, -4, 4, 182, 185, "#aeb7bf", "ESP32 USB port")
+    box("buck_12v_5v", "elec", 97, 106, -8.5, 8.5, 160, 182, "#3d7f9a", "12 V to 5 V buck converter, about 22 x 17 mm")
+    for ix, cx in enumerate((88.5, 109.5)):
+        for iy, cy in enumerate((-21, 0, 21)):
+            cyl("cell_%d%d" % (ix + 1, iy + 1), "elec", cx, cy, 10.5, 57, 127, "#2f8f6f", "21700 cell, 21 x 70 mm (3S2P pack, 6 cells)")
+    box("bms_3s", "elec", 79, 119, -30, 30, 52, 55, "#3f6f9a", "3S battery protection board (BMS), size depends on the part")
+    box("bts7960", "elec", 79, 91, -25, 25, 1.5, 49.5, "#1e5aa8", "BTS7960 board without heatsink, about 50 x 50 mm (standing)")
+    box("oled_1_5in", "display", 79, 117, -19, 19, 191, 194.2, "#0b1218", "1.5 inch OLED module, about 38 x 38 mm")
+    box("oled_screen", "display", 82, 114, -16, 16, 194.2, 194.4, "#9fe4ff", "OLED screen (128 x 128)")
+    for sy in (-12, 12):
+        cyl("button_%s" % ("1" if sy < 0 else "2"), "display", 121, sy, 3.2, 191, 194, "#d94f3a", "Push button (GPIO32 / GPIO33)")
 
-# explode vectors (X, Y, Z in mm at 100 %), by group; some parts get their own
-GROUP_EX = {"shell": (0, 0, 0), "lid": (0, 0, 90), "display": (0, 0, 90), "cup": (0, 0, 52), "water": (0, 0, 52),
-            "thermal": (0, 0, 24), "heatsink": (0, 0, 0), "fan": (0, 0, -34), "elec": (60, 0, 0)}
-PART_EX = {"esp32_30pin": (60, 0, 30), "esp32_usb": (60, 0, 30), "buck_12v_5v": (60, 0, 46),
-           "bms_3s": (60, 0, -22), "bts7960": (60, 0, -44)}
-for p in P:
-    p["ex"] = list(PART_EX.get(p["name"], GROUP_EX[p["grp"]]))
+    # explode vectors (X, Y, Z in mm at 100 %), by group; some parts get their own
+    GROUP_EX = {"shell": (0, 0, 0), "lid": (0, 0, 90), "display": (0, 0, 90), "cup": (0, 0, 52), "water": (0, 0, 52),
+                "thermal": (0, 0, 24), "heatsink": (0, 0, 0), "fan": (0, 0, -34), "elec": (60, 0, 0)}
+    PART_EX = {"esp32_30pin": (60, 0, 30), "esp32_usb": (60, 0, 30), "buck_12v_5v": (60, 0, 46),
+               "bms_3s": (60, 0, -22), "bts7960": (60, 0, -44)}
+    for p in P:
+        p["ex"] = list(PART_EX.get(p["name"], GROUP_EX[p["grp"]]))
+
+
+    return dict(name="box", title="Box layout", height=191, cx=62.5, cz=97, parts=list(P))
+
+
+def stack(cx, z0, tag=""):
+    """Fan, copper heatsink (fins run X to X), foam ring, TEC and water plate, bottom to top from z0."""
+    FRAME = "#3a4650"
+    box("fan_frame_a", "fan", cx - 20, cx + 20, -20, -17, z0, z0 + 28, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
+    box("fan_frame_b", "fan", cx - 20, cx + 20, 17, 20, z0, z0 + 28, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
+    box("fan_frame_c", "fan", cx - 20, cx - 17, -17, 17, z0, z0 + 28, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
+    box("fan_frame_d", "fan", cx + 17, cx + 20, -17, 17, z0, z0 + 28, FRAME, "SUNON fan frame, 40 x 40 x 28 mm")
+    cyl("fan_hub", "fan", cx, 0, 8, z0 + 1, z0 + 27, "#7b8791", "Fan hub")
+    for i in range(7):
+        a = i * 360.0 / 7
+        bx = cx + 12.25 * math.cos(math.radians(a)); by = 12.25 * math.sin(math.radians(a))
+        box("fan_blade_%d" % (i + 1), "fan", bx - 4.25, bx + 4.25, by - 0.8, by + 0.8, z0 + 4, z0 + 24, "#98a4ad", "Fan blade", rotz=a)
+    COPPER = "#c98a5e"
+    for k in range(17):
+        yc = -24 + 3 * k
+        box("fin_%02d" % (k + 1), "heatsink", cx - 25, cx + 25, yc - 0.45, yc + 0.45, z0 + 28, z0 + 53, COPPER, "Heatsink fin, 0.9 mm thick, 25 mm tall, 3 mm pitch")
+    box("heatsink_base", "heatsink", cx - 25, cx + 25, -25, 25, z0 + 53, z0 + 58, COPPER, "Heatsink base, 50 x 50 x 5 mm (proposed, copper)")
+    FOAM = "#e0c88a"
+    zt = z0 + 58
+    box("foam_ring_a", "thermal", cx - 25, cx - 20, -25, 25, zt, zt + 4, FOAM, "Foam ring around the TEC, 4 mm")
+    box("foam_ring_b", "thermal", cx + 20, cx + 25, -25, 25, zt, zt + 4, FOAM, "Foam ring around the TEC, 4 mm")
+    box("foam_ring_c", "thermal", cx - 20, cx + 20, -25, -20, zt, zt + 4, FOAM, "Foam ring around the TEC, 4 mm")
+    box("foam_ring_d", "thermal", cx - 20, cx + 20, 20, 25, zt, zt + 4, FOAM, "Foam ring around the TEC, 4 mm")
+    box("tec_hot_face", "thermal", cx - 20, cx + 20, -20, 20, zt, zt + 1, "#e8743b", "TEC1-12706 40 x 40 x 3.8 mm, heatsink side (hot when cooling)")
+    box("tec_body", "thermal", cx - 20, cx + 20, -20, 20, zt + 1, zt + 2.8, "#eceff1", "TEC1-12706 40 x 40 x 3.8 mm")
+    box("tec_cold_face", "thermal", cx - 20, cx + 20, -20, 20, zt + 2.8, zt + 3.8, "#3d9fd6", "TEC1-12706 40 x 40 x 3.8 mm, water side (cold when cooling)")
+    box("water_plate", "thermal", cx - 20, cx + 20, -20, 20, zt + 4, zt + 12, "#b9c2c9", "Water-side plate, 40 x 40 x 8 mm (aluminium or copper)")
+
+
+def build_bottle():
+    """Portable bottle: round body 90 mm across, battery at the bottom, fan and heatsink above, water cup on top."""
+    P.clear()
+    R_IN, R_OUT = 43.5, 45.0
+    GLASS = "#9db3c2"
+    TOP = 249
+    ring("shell", "shell", 0, 0, R_IN, R_OUT, 3, TOP, GLASS, "Outer shell, 90 mm across (1.5 mm wall)", 0.14)
+    cyl("base_pad", "shell", 0, 0, R_OUT, 0, 3, "#2a323a", "Rubber base pad, 3 mm (non-slip)")
+    cyl("bulkhead", "shell", 0, 0, R_IN, 82, 84, "#8d99a3", "Bulkhead between battery bay and air path, 2 mm (wires pass through)")
+    for k in range(8):                                   # air in, around the gap under the fan
+        a = 22.5 + 45 * k
+        px, py = 44.7 * math.cos(math.radians(a)), 44.7 * math.sin(math.radians(a))
+        box("intake_slot_%d" % (k + 1), "shell", px - 0.9, px + 0.9, py - 7, py + 7, 85.5, 90.5, "#101820", "Air intake slot", rotz=a)
+    for side, a in (("front", 0), ("rear", 180)):        # air out, at fin height
+        px, py = 44.7 * math.cos(math.radians(a)), 44.7 * math.sin(math.radians(a))
+        for j, z in enumerate((124, 129.5, 135, 140.5)):
+            box("exhaust_slot_%s_%d" % (side, j + 1), "shell", px - 0.9, px + 0.9, py - 18, py + 18, z, z + 3.5, "#101820", "Exhaust slot", rotz=a)
+
+    stack(0, 92)                                         # fan 92-120, fins 120-145, base 145-150, TEC 150-154, plate 154-162
+
+    cyl("cup_floor", "cup", 0, 0, 37, 162, 165, "#c5ced6", "Cup floor, 3 mm aluminium spreader plate")
+    ring("cup_wall", "cup", 0, 0, 36, 37, 165, 241, "#c5ced6", "Water cup wall, inside diameter 72 mm", 0.55)
+    ring("insulation_sleeve", "cup", 0, 0, 37, 42.5, 165, 241, "#e0c88a", "Foam insulation sleeve, 5.5 mm", 0.4)
+    cyl("water", "water", 0, 0, 36, 165, 233, "#58b4e2", "Water, about 275 mL (68 mm deep)", 0.55)
+    cyl("lid", "lid", 0, 0, R_IN, 241, TOP, "#dde4e9", "Removable lid, 8 mm")
+
+    box("oled_1_5in", "display", -25, 13, -19, 19, TOP, TOP + 3.2, "#0b1218", "1.5 inch OLED module, about 38 x 38 mm (on the lid)")
+    box("oled_screen", "display", -22, 10, -16, 16, TOP + 3.2, TOP + 3.4, "#9fe4ff", "OLED screen (128 x 128)")
+    for sy in (-8, 8):
+        cyl("button_%s" % ("1" if sy < 0 else "2"), "display", 24, sy, 3.2, TOP, TOP + 3, "#d94f3a", "Push button (GPIO32 / GPIO33)")
+    box("handle_post_L", "handle", 30, 38, -26, -21, TOP, TOP + 15, "#3a4650", "Carry handle post (simplified, folds flat)")
+    box("handle_post_R", "handle", 30, 38, 21, 26, TOP, TOP + 15, "#3a4650", "Carry handle post (simplified, folds flat)")
+    box("handle_bar", "handle", 30, 38, -26, 26, TOP + 15, TOP + 19, "#3a4650", "Carry handle bar (simplified)")
+    for sy in (-1, 1):
+        box("strap_lug_%s" % ("L" if sy < 0 else "R"), "shell", -3, 3, min(sy * 44, sy * 49), max(sy * 44, sy * 49), 196, 206, "#3a4650", "Strap lug for a shoulder strap")
+
+    # battery bay, 3 to 82
+    for ix, cx in enumerate((-21, 0, 21)):
+        for iy, cy in enumerate((-10.5, 10.5)):
+            cyl("cell_%d%d" % (ix + 1, iy + 1), "elec", cx, cy, 10.5, 4, 74, "#2f8f6f", "21700 cell, 21 x 70 mm (3S2P pack, 6 cells)")
+    box("bms_3s", "elec", -30, 30, -20, 20, 75, 78, "#3f6f9a", "3S battery protection board (BMS), size depends on the part")
+    box("bts7960", "elec", -25, 25, 22.5, 34.5, 4, 54, "#1e5aa8", "BTS7960 board without heatsink, about 50 x 50 mm (standing)")
+    box("esp32_30pin", "elec", -14, 14, -35.5, -22.5, 5, 57, "#1d2a33", "ESP32 30-pin board, about 52 x 28 mm (standing)")
+    box("buck_12v_5v", "elec", -8.5, 8.5, -34, -25, 59, 81, "#3d7f9a", "12 V to 5 V buck converter, about 22 x 17 mm")
+
+    ex = {"shell": (0, 0, 0), "lid": (0, 0, 95), "display": (0, 0, 95), "handle": (0, 0, 95), "cup": (0, 0, 58), "water": (0, 0, 58),
+          "thermal": (0, 0, 28), "heatsink": (0, 0, 0), "fan": (0, 0, -30), "elec": (0, 0, 0)}
+    pex = {"bms_3s": (0, 0, 22), "bts7960": (0, 62, 0), "esp32_30pin": (0, -62, 0), "buck_12v_5v": (0, -62, 18)}
+    for p in P:
+        p["ex"] = list(pex.get(p["name"], ex[p["grp"]]))
+    return dict(name="bottle", title="Portable bottle", height=TOP + 19, cx=0, cz=134, parts=list(P))
 
 
 # ================================================================ mesh helpers (OBJ / STL)
@@ -295,10 +383,13 @@ print("ThermoX layout draft built:", len(PARTS), "parts")
     open(path, "w").write(code)
 
 
-def write_viewer_data(path):
+def write_viewer_data(path, designs):
     keep = ("name", "kind", "grp", "color", "alpha", "rotz", "edges", "label", "ex", "x0", "x1", "y0", "y1", "z0", "z1", "cx", "cy", "r", "r_in", "r_out")
-    slim = [{k: p[k] for k in keep if k in p} for p in P]
-    open(path, "w").write(json.dumps(slim, separators=(",", ":")))
+    out = {}
+    for d in designs:
+        out[d["name"]] = dict(title=d["title"], height=d["height"], cx=d["cx"], cz=d["cz"],
+                              parts=[{k: p[k] for k in keep if k in p} for p in d["parts"]])
+    open(path, "w").write(json.dumps(out, separators=(",", ":")))
 
 
 def overlaps():
@@ -314,16 +405,38 @@ def overlaps():
     return bad
 
 
+def reach(p):
+    """Largest distance of a part from the vertical axis (round design) in mm."""
+    if p["kind"] == "box":
+        cx, cy = (p["x0"] + p["x1"]) / 2, (p["y0"] + p["y1"]) / 2
+        best = 0
+        for x in (p["x0"], p["x1"]):
+            for y in (p["y0"], p["y1"]):
+                rx, ry = rot(x, y, cx, cy, p["rotz"])
+                best = max(best, math.hypot(rx, ry))
+        return best
+    return math.hypot(p["cx"], p["cy"]) + (p["r"] if p["kind"] == "cyl" else p["r_out"])
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    write_obj(os.path.join(OUT, "thermox_assembly.obj"), os.path.join(OUT, "thermox_assembly.mtl"))
-    write_stl(os.path.join(OUT, "thermox_assembly.stl"))
-    write_blender(os.path.join(OUT, "thermox_blender.py"))
-    write_viewer_data(os.path.join(OUT, "viewer_parts.json"))
-    try:
-        write_step(os.path.join(OUT, "thermox_assembly.step"))
-        print("STEP written")
-    except Exception as e:                                 # cadquery missing is fine
-        print("STEP skipped:", repr(e)[:120])
-    xs = [p.get("x1", p.get("cx", 0) + p.get("r", p.get("r_out", 0))) for p in P]
-    print("parts:", len(P), "| box overlaps:", overlaps())
+    designs = [build_box(), build_bottle()]
+    for d in designs:
+        P[:] = d["parts"]
+        sub = os.path.join(OUT, d["name"])
+        os.makedirs(sub, exist_ok=True)
+        write_obj(os.path.join(sub, "thermox_%s.obj" % d["name"]), os.path.join(sub, "thermox_%s.mtl" % d["name"]))
+        write_stl(os.path.join(sub, "thermox_%s.stl" % d["name"]))
+        write_blender(os.path.join(sub, "thermox_%s_blender.py" % d["name"]))
+        try:
+            write_step(os.path.join(sub, "thermox_%s.step" % d["name"]))
+            step = "STEP ok"
+        except Exception as e:                              # cadquery missing is fine
+            step = "STEP skipped: " + repr(e)[:80]
+        extra = ""
+        if d["name"] == "bottle":
+            inner = [p for p in P if p["grp"] not in ("shell", "lid", "display", "handle") and p["name"] != "bulkhead"]
+            far = max(((reach(p), p["name"]) for p in inner if p["name"] not in ("insulation_sleeve", "cup_wall", "cup_floor")), default=(0, ""))
+            extra = " | farthest inner part from axis: %.1f mm (%s), inner radius 43.5" % far
+        print("%-7s parts: %d | box overlaps: %s | %s%s" % (d["name"], len(P), overlaps(), step, extra))
+    write_viewer_data(os.path.join(OUT, "viewer_parts.json"), designs)

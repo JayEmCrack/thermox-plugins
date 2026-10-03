@@ -1,5 +1,5 @@
 # ThermoX layout draft, millimetres, Z up
-mtllib thermox_assembly.mtl
+mtllib thermox_box.mtl
 g shell_front_wall
 usemtl m_shell_front_wall
 v 0.0000 -37.5000 5.0000
