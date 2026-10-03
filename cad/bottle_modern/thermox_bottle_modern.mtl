@@ -2,6 +2,18 @@ newmtl m_base_pad
 Kd 0.059 0.067 0.075
 d 1.00
 
+newmtl m_strap_lug_L
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_strap_lug_R
+Kd 1.000 0.420 0.173
+d 1.00
+
+newmtl m_nameplate
+Kd 1.000 0.420 0.173
+d 1.00
+
 newmtl m_body_lower
 Kd 0.169 0.188 0.212
 d 1.00
@@ -14,7 +26,7 @@ newmtl m_body_upper
 Kd 0.169 0.188 0.212
 d 1.00
 
-newmtl m_lid_dome
+newmtl m_lid
 Kd 0.114 0.129 0.145
 d 1.00
 
@@ -66,80 +78,68 @@ newmtl m_grip_rib_9
 Kd 0.078 0.090 0.102
 d 1.00
 
-newmtl m_nameplate
-Kd 1.000 0.420 0.173
+newmtl m_lm2596_pcb
+Kd 0.106 0.341 0.722
 d 1.00
 
-newmtl m_strap_lug_L
-Kd 1.000 0.420 0.173
+newmtl m_lm2596_ic
+Kd 0.114 0.122 0.133
 d 1.00
 
-newmtl m_strap_lug_R
-Kd 1.000 0.420 0.173
+newmtl m_lm2596_trimmer
+Kd 0.173 0.435 0.820
 d 1.00
 
-newmtl m_intake_slot_1
-Kd 0.039 0.047 0.055
+newmtl m_lm2596_inductor
+Kd 0.231 0.247 0.267
 d 1.00
 
-newmtl m_intake_slot_2
-Kd 0.039 0.047 0.055
+newmtl m_lm2596_cap_1
+Kd 0.145 0.161 0.176
 d 1.00
 
-newmtl m_intake_slot_3
-Kd 0.039 0.047 0.055
+newmtl m_lm2596_cap_2
+Kd 0.145 0.161 0.176
 d 1.00
 
-newmtl m_intake_slot_4
-Kd 0.039 0.047 0.055
+newmtl m_pack_carrier
+Kd 0.553 0.600 0.639
 d 1.00
 
-newmtl m_intake_slot_5
-Kd 0.039 0.047 0.055
+newmtl m_cell_11
+Kd 0.184 0.561 0.435
 d 1.00
 
-newmtl m_intake_slot_6
-Kd 0.039 0.047 0.055
+newmtl m_cell_12
+Kd 0.184 0.561 0.435
 d 1.00
 
-newmtl m_intake_slot_7
-Kd 0.039 0.047 0.055
+newmtl m_cell_21
+Kd 0.184 0.561 0.435
 d 1.00
 
-newmtl m_intake_slot_8
-Kd 0.039 0.047 0.055
+newmtl m_cell_22
+Kd 0.184 0.561 0.435
 d 1.00
 
-newmtl m_exhaust_slot_front_1
-Kd 0.039 0.047 0.055
+newmtl m_cell_31
+Kd 0.184 0.561 0.435
 d 1.00
 
-newmtl m_exhaust_slot_front_2
-Kd 0.039 0.047 0.055
+newmtl m_cell_32
+Kd 0.184 0.561 0.435
 d 1.00
 
-newmtl m_exhaust_slot_front_3
-Kd 0.039 0.047 0.055
+newmtl m_bms_3s
+Kd 0.247 0.435 0.604
 d 1.00
 
-newmtl m_exhaust_slot_front_4
-Kd 0.039 0.047 0.055
+newmtl m_bts7960
+Kd 0.118 0.353 0.659
 d 1.00
 
-newmtl m_exhaust_slot_rear_1
-Kd 0.039 0.047 0.055
-d 1.00
-
-newmtl m_exhaust_slot_rear_2
-Kd 0.039 0.047 0.055
-d 1.00
-
-newmtl m_exhaust_slot_rear_3
-Kd 0.039 0.047 0.055
-d 1.00
-
-newmtl m_exhaust_slot_rear_4
-Kd 0.039 0.047 0.055
+newmtl m_esp32_30pin
+Kd 0.114 0.165 0.200
 d 1.00
 
 newmtl m_bulkhead
@@ -314,6 +314,70 @@ newmtl m_water
 Kd 0.345 0.706 0.886
 d 0.55
 
+newmtl m_intake_slot_1
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_2
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_3
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_4
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_5
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_6
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_7
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_intake_slot_8
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_front_1
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_front_2
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_front_3
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_front_4
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_rear_1
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_rear_2
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_rear_3
+Kd 0.039 0.047 0.055
+d 1.00
+
+newmtl m_exhaust_slot_rear_4
+Kd 0.039 0.047 0.055
+d 1.00
+
 newmtl m_oled_1_5in
 Kd 0.043 0.071 0.094
 d 1.00
@@ -330,115 +394,75 @@ newmtl m_button_2
 Kd 1.000 0.420 0.173
 d 1.00
 
-newmtl m_handle_01
+newmtl m_loop_01
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_02
+newmtl m_loop_02
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_03
+newmtl m_loop_03
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_04
+newmtl m_loop_04
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_05
+newmtl m_loop_05
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_06
+newmtl m_loop_06
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_07
+newmtl m_loop_07
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_08
+newmtl m_loop_08
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_09
+newmtl m_loop_09
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_10
+newmtl m_loop_10
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_11
+newmtl m_loop_11
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_12
+newmtl m_loop_12
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_13
+newmtl m_loop_13
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_14
+newmtl m_loop_14
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_15
+newmtl m_loop_15
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_16
+newmtl m_loop_16
 Kd 0.765 0.792 0.820
 d 1.00
 
-newmtl m_handle_mount_L
+newmtl m_loop_mount_L
 Kd 1.000 0.420 0.173
 d 1.00
 
-newmtl m_handle_mount_R
+newmtl m_loop_mount_R
 Kd 1.000 0.420 0.173
-d 1.00
-
-newmtl m_cell_11
-Kd 0.184 0.561 0.435
-d 1.00
-
-newmtl m_cell_12
-Kd 0.184 0.561 0.435
-d 1.00
-
-newmtl m_cell_21
-Kd 0.184 0.561 0.435
-d 1.00
-
-newmtl m_cell_22
-Kd 0.184 0.561 0.435
-d 1.00
-
-newmtl m_cell_31
-Kd 0.184 0.561 0.435
-d 1.00
-
-newmtl m_cell_32
-Kd 0.184 0.561 0.435
-d 1.00
-
-newmtl m_bms_3s
-Kd 0.247 0.435 0.604
-d 1.00
-
-newmtl m_bts7960
-Kd 0.118 0.353 0.659
-d 1.00
-
-newmtl m_esp32_30pin
-Kd 0.114 0.165 0.200
-d 1.00
-
-newmtl m_buck_12v_5v
-Kd 0.239 0.498 0.604
 d 1.00
 

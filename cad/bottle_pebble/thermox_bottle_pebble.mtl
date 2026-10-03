@@ -1,49 +1,29 @@
 newmtl m_base_pad
-Kd 0.227 0.165 0.125
+Kd 0.914 0.933 0.918
 d 1.00
 
 newmtl m_strap_lug_L
-Kd 0.788 0.635 0.290
+Kd 0.949 0.639 0.549
 d 1.00
 
 newmtl m_strap_lug_R
-Kd 0.788 0.635 0.290
-d 1.00
-
-newmtl m_nameplate
-Kd 0.788 0.635 0.290
+Kd 0.949 0.639 0.549
 d 1.00
 
 newmtl m_body_lower
-Kd 0.184 0.365 0.286
+Kd 0.725 0.875 0.800
 d 1.00
 
 newmtl m_body_waist
-Kd 0.910 0.875 0.788
+Kd 0.725 0.875 0.800
 d 1.00
 
 newmtl m_body_upper
-Kd 0.184 0.365 0.286
+Kd 0.725 0.875 0.800
 d 1.00
 
 newmtl m_lid
-Kd 0.937 0.910 0.839
-d 1.00
-
-newmtl m_trim_band_1
-Kd 0.788 0.635 0.290
-d 1.00
-
-newmtl m_trim_band_2
-Kd 0.788 0.635 0.290
-d 1.00
-
-newmtl m_trim_band_3
-Kd 0.788 0.635 0.290
-d 1.00
-
-newmtl m_grip_wrap
-Kd 0.541 0.353 0.212
+Kd 0.957 0.965 0.957
 d 1.00
 
 newmtl m_lm2596_pcb
@@ -283,67 +263,67 @@ Kd 0.345 0.706 0.886
 d 0.55
 
 newmtl m_intake_slot_1
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_intake_slot_2
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_intake_slot_3
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_intake_slot_4
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_intake_slot_5
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_intake_slot_6
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_intake_slot_7
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_intake_slot_8
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_exhaust_slot_front_1
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_exhaust_slot_front_2
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_exhaust_slot_front_3
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_exhaust_slot_front_4
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_exhaust_slot_rear_1
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_exhaust_slot_rear_2
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_exhaust_slot_rear_3
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_exhaust_slot_rear_4
-Kd 0.078 0.125 0.102
+Kd 0.525 0.749 0.643
 d 1.00
 
 newmtl m_oled_1_5in
@@ -354,83 +334,75 @@ newmtl m_oled_screen
 Kd 0.624 0.894 1.000
 d 1.00
 
-newmtl m_oled_bezel_a
-Kd 0.788 0.635 0.290
-d 1.00
-
-newmtl m_oled_bezel_b
-Kd 0.788 0.635 0.290
-d 1.00
-
-newmtl m_oled_bezel_c
-Kd 0.788 0.635 0.290
-d 1.00
-
-newmtl m_oled_bezel_d
-Kd 0.788 0.635 0.290
-d 1.00
-
 newmtl m_button_1
-Kd 0.788 0.635 0.290
+Kd 0.949 0.639 0.549
 d 1.00
 
 newmtl m_button_2
-Kd 0.788 0.635 0.290
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_01
-Kd 0.541 0.353 0.212
+newmtl m_loop_01
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_02
-Kd 0.541 0.353 0.212
+newmtl m_loop_02
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_03
-Kd 0.541 0.353 0.212
+newmtl m_loop_03
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_04
-Kd 0.541 0.353 0.212
+newmtl m_loop_04
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_05
-Kd 0.541 0.353 0.212
+newmtl m_loop_05
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_06
-Kd 0.541 0.353 0.212
+newmtl m_loop_06
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_07
-Kd 0.541 0.353 0.212
+newmtl m_loop_07
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_08
-Kd 0.541 0.353 0.212
+newmtl m_loop_08
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_09
-Kd 0.541 0.353 0.212
+newmtl m_loop_09
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_10
-Kd 0.541 0.353 0.212
+newmtl m_loop_10
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_11
-Kd 0.541 0.353 0.212
+newmtl m_loop_11
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_12
-Kd 0.541 0.353 0.212
+newmtl m_loop_12
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_mount_L
-Kd 0.788 0.635 0.290
+newmtl m_loop_13
+Kd 0.949 0.639 0.549
 d 1.00
 
-newmtl m_strap_mount_R
-Kd 0.788 0.635 0.290
+newmtl m_loop_14
+Kd 0.949 0.639 0.549
+d 1.00
+
+newmtl m_loop_mount_L
+Kd 0.949 0.639 0.549
+d 1.00
+
+newmtl m_loop_mount_R
+Kd 0.949 0.639 0.549
 d 1.00
 
