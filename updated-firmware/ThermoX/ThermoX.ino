@@ -240,7 +240,7 @@ void drawUI() {
 // ---------------- Logging ----------------
 // One line per sample, read by receiver/receiver.py and stored via the PHP API:
 //   TEMP=28.40,TARGET=18.0,MODE=COOLING,PELTIER=1,FAN=1[,BATTERY=12.10]
-// MODE is HEATING, COOLING, IDLE (inside the hysteresis band) or FAULT.
+// MODE is HEATING, COOLING, IDLE (ready, or target reached and waiting for the next press) or FAULT.
 // BATTERY is only sent when battery sensing is really enabled.
 void logData() {
   static uint32_t t0 = 0;
