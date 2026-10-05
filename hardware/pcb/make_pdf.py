@@ -20,11 +20,11 @@ ORANGE = Color(0.85, 0.45, 0.0)
 class View:
     """Maps layout units to page points for a board drawn at (ox, oy) mm from the page top-left."""
 
-    def __init__(self, ox, oy, s=1.0):
-        self.ox, self.oy, self.s = ox, oy, s
+    def __init__(self, B, ox, oy, s=1.0):
+        self.B, self.ox, self.oy, self.s = B, ox, oy, s
 
     def p(self, q):
-        x, y = L.mm(q)
+        x, y = self.B.mm(q)
         return (self.ox + x * self.s) * mm, PH - (self.oy + y * self.s) * mm
 
     def d(self, v_mm):
@@ -53,8 +53,8 @@ def paragraph(c, x, y, lines, size=8.5, lead=1.35, font="Helvetica", color=black
 
 
 def board_outline(c, v, width=0.25, color=black):
-    x0, y0 = v.p((L.BX0, L.BY0))
-    x1, y1 = v.p((L.BX1, L.BY1))
+    x0, y0 = v.p((v.B.BX0, v.B.BY0))
+    x1, y1 = v.p((v.B.BX1, v.B.BY1))
     c.setStrokeColor(color)
     c.setLineWidth(width)
     c.rect(x0, y1, x1 - x0, y0 - y1, stroke=1, fill=0)
@@ -106,7 +106,7 @@ def draw_copper(c, B, v, color=black, drills=True, mirror_text=True, outline=Tru
 def page_toner(c, B, other):
     rows = B.ROWS_MM
     text(c, 15 * mm, PH - 15 * mm,
-         f"ThermoX board v1 - COPPER for toner transfer - ESP32 rows {rows:.2f} mm apart", 12,
+         f"ThermoX board {B.name} mm - COPPER for toner transfer - ESP32 rows {rows:.2f} mm", 12,
          "Helvetica-Bold")
     c.setFillColor(Color(1, 0.95, 0.8))
     c.rect(14 * mm, PH - 29.5 * mm, 182 * mm, 10.5 * mm, stroke=0, fill=1)
@@ -120,13 +120,13 @@ def page_toner(c, B, other):
         "LASER printer, 100% / 'Actual size' (turn OFF 'Fit to page'), glossy or photo paper. Do NOT mirror: the",
         "small text reads BACKWARDS here and will read normally on the copper. 4 copies, pick the cleanest one.",
     ], 8.5)
-    bw, bh = L.BOARD_W, L.BOARD_H
+    bw, bh = B.BOARD_W, B.BOARD_H
     gx, gy = 9.0, 8.0
     x0 = (PW / mm - (2 * bw + gx)) / 2
     y0 = 48.0
     for r in range(2):
         for k in range(2):
-            v = View(x0 + k * (bw + gx), y0 + r * (bh + gy), 1.0)
+            v = View(B, x0 + k * (bw + gx), y0 + r * (bh + gy), 1.0)
             draw_copper(c, B, v)
     # Scale check
     yb = y0 + 2 * bh + gy + 17
@@ -168,7 +168,7 @@ def rotated(c, x, y, s, size, font="Helvetica-Bold", color=black, angle=90, anch
 
 def page_placement(c, B):
     s = 2.0
-    v = View((PW / mm - L.BOARD_W * s) / 2, 33, s)
+    v = View(B, (PW / mm - B.BOARD_W * s) / 2, 33, s)
     text(c, 15 * mm, PH - 16 * mm,
          "Parts placement and drilling guide (TOP view, 2x size, not for transfer)", 12,
          "Helvetica-Bold")
@@ -254,23 +254,17 @@ def page_placement(c, B):
                 text(c, px, py - 2.2, name, 6.5, "Helvetica-Bold", GREEN)
 
     # Connector titles
-    for (x, y), s, anchor in [((1.35, 3.62), "J4 FAN", "r"),
-                              ((3.5, 17.05), "J1 BTS7960 A", "l"),
-                              ((3.5, 18.35), "J9 BTS7960 B", "l"),
-                              ((25.0, 7.3), "J2 OLED SH1107", "l"),
-                              ((31.4, 20.3), "J3 DS18B20", "l"),
-                              ((6.35, 23.4), "J8 POWER IN (screw terminal)", "l")]:
+    for (x, y), s, anchor in B.titles:
         px, py = v.p((x, y))
         label_bg(c, px, py, s, 7, color=GREEN, anchor=anchor)
-    for (x, y, s) in [(2.35, 11, "J7 BAT  GND | BAT+"), (2.35, 12, "J5 BTN1  GND | B1"),
-                      (2.35, 13, "J6 BTN2  GND | B2")]:
+    for (x, y, s) in B.tags:
         px, py = v.p((x, y))
         label_bg(c, px, py - 2.2, s, 6.2, color=GREEN, anchor="r")
-    px, py = v.p((-0.5, L.BY1))
+    px, py = v.p((B.BX0, B.BY1))
     text(c, px, py - 4 * mm, "J4 fan: red 12V, black GND, yellow FG, blue PWM.   J3 DS18B20: red VCC, "
          "black GND, yellow DATA.", 7, "Helvetica", GREEN)
-    text(c, px, py - 7.5 * mm, "J7 (battery gauge) is for later: leave it open. Power wires enter J8 from "
-         "the bottom edge.", 7, "Helvetica", GREEN)
+    text(c, px, py - 7.5 * mm, ("J7 (battery gauge) is for later: leave it open. " if B.battery else "")
+         + "Power wires enter J8 from the bottom edge.", 7, "Helvetica", GREEN)
 
     # Screw terminal body
     p0, p1 = v.p((0.0, 22.6)), v.p((6.0, 25.7))
@@ -305,8 +299,9 @@ def page_placement(c, B):
             c.rect(min(pa[0], pb[0]) + v.d(1.5), pa[1] - h / 2, w, h, stroke=1, fill=1)
             c.setDash()
             text(c, (pa[0] + pb[0]) / 2, pa[1] - 2.0, lab, 5.8, "Helvetica-Bold", col, "c")
-    px, py = v.p((6.95, 9.0))
-    label_bg(c, px, py - 2.2, "C1 empty", 5.8, color=Color(0.45, 0.45, 0.45), anchor="r")
+    if B.battery:
+        px, py = v.p((6.95, 9.0))
+        label_bg(c, px, py - 2.2, "C1 empty", 5.8, color=Color(0.45, 0.45, 0.45), anchor="r")
 
     # JP1 wire link
     jp = next(k for k in B.components if k["ref"] == "JP1")
@@ -317,12 +312,12 @@ def page_placement(c, B):
     label_bg(c, (pa[0] + pb[0]) / 2, pa[1] + 2.2 * mm, "JP1 wire link (GND)", 6.5, color=RED,
              anchor="c")
 
-    y = v.p((0, L.BY1))[1] - 17 * mm
+    y = v.p((0, B.BY1))[1] - 17 * mm
     paragraph(c, 15 * mm, y, [
         "**Order of assembly",
         "1. JP1 wire link first (a cut resistor leg). It sits under the ESP32.",
-        "2. R1 4.7k and R2 10k. Leave R3, R4 and C1 EMPTY (they are for the future battery gauge).",
-        "3. Male pin headers J1-J7 and J9 (2.54 mm), then the J8 screw terminal.",
+        "2. R1 4.7k and R2 10k." + (" Leave R3, R4 and C1 EMPTY (future battery gauge)." if B.battery else ""),
+        "3. Male pin headers J1-J6" + (", J7" if B.battery else "") + " and J9 (2.54 mm), then the J8 screw terminal.",
         "4. The two 15-pin FEMALE headers last. Plug the ESP32 in with VIN/GND at the bottom-left,",
         "    3V3/GND at the bottom-right and the USB port toward the bottom edge.",
         "",
@@ -362,7 +357,7 @@ HARNESS = [
 ]
 
 
-def page_wiring(c):
+def page_wiring(c, B):
     text(c, 15 * mm, PH - 16 * mm, "Wiring (line route): board connectors to ThermoX parts", 12,
          "Helvetica-Bold")
     text(c, 15 * mm, PH - 22 * mm,
@@ -372,7 +367,7 @@ def page_wiring(c):
     xd0, xd1 = 120, 195      # device box
     pitch, gap = 4.5, 3.2
     y = 30.0
-    for title, device, rows in HARNESS:
+    for title, device, rows in [h for h in HARNESS if B.battery or not h[0].startswith("J7")]:
         h = len(rows) * pitch + 6
         # board side box
         c.setStrokeColor(GREEN)
@@ -481,7 +476,7 @@ def table(c, x, y, cols, rows, size=8.0, lead=4.3, head=True):
     return yy
 
 
-def page_bom(c):
+def page_bom(c, B):
     text(c, 15 * mm, PH - 16 * mm, "Parts list, GPIO check and how to make the board", 12,
          "Helvetica-Bold")
     y = PH - 26 * mm
@@ -493,13 +488,13 @@ def page_bom(c):
         ("J3", "3-pin male header", "DS18B20: VCC(3V3) GND DATA"),
         ("J4", "4-pin male header", "SUNON fan: 12V GND TACH PWM"),
         ("J5, J6", "2-pin male header (x2)", "buttons: GND + signal"),
-        ("J7", "2-pin male header", "battery sense, future (can be left off)"),
+    ] + ([("J7", "2-pin male header", "battery sense, future (can be left off)")] if B.battery else []) + [
         ("J8", "3-way screw terminal, 5.08 mm", "power in: 12V GND 5V"),
         ("R1", "4.7 kohm, 1/4 W", "DS18B20 DATA pull-up to 3V3"),
         ("R2", "10 kohm, 1/4 W", "fan tach pull-up to 3V3 (GPIO34 has none)"),
-        ("R3, R4, C1", "leave EMPTY", "future battery gauge, see notes"),
+    ] + ([("R3, R4, C1", "leave EMPTY", "future battery gauge, see notes")] if B.battery else []) + [
         ("JP1", "wire link (cut resistor leg)", "joins left and right GND"),
-        ("PCB", "single-sided copper clad", "at least 90 x 70 mm"),
+        ("PCB", "single-sided copper clad", f"at least {B.BOARD_W + 4:.0f} x {B.BOARD_H + 4:.0f} mm"),
     ])
     y -= 3 * mm
     text(c, 15 * mm, y, "GPIO check (current ThermoX pin map, nothing changed)", 9.5, "Helvetica-Bold")
@@ -515,7 +510,8 @@ def page_bom(c):
         ("Temperature sensor (DS18B20)", "GPIO14", "J3 DATA (+ R1 4.7k)"),
         ("SUNON fan PWM", "GPIO23", "J4 PWM"),
         ("SUNON fan tach / FG", "GPIO34", "J4 TACH (+ R2 10k)"),
-        ("Battery sense (future, off)", "GPIO35", "R3/R4 divider -> J7"),
+        ("Battery sense (future, off)", "GPIO35",
+         "R3/R4 divider -> J7" if B.battery else "not on this board (wire later)"),
     ])
     y -= 3 * mm
     y = paragraph(c, 15 * mm, y, [
@@ -539,23 +535,30 @@ def page_bom(c):
         "",
         "**Notes",
         "* For the 30-pin DevKit V1 only. Page 1 = rows 25.4 mm apart, page 2 = rows 22.86 mm. 38-pin will NOT fit.",
-        "* Battery gauge (later): R3 top, R4 bottom; GPIO35 must stay under 3.1 V. 1S Li-ion: 100k/100k.",
+        "* Battery gauge (later): " + ("R3 top, R4 bottom; " if B.battery else "divider from BAT+ to the GPIO35 "
+        "socket pin; ") + "GPIO35 must stay under 3.1 V. 1S Li-ion: 100k/100k.",
         "   3S 12 V pack: 100k/27k and set BATT_DIVIDER = 4.7 in the firmware. Then ENABLE_BATTERY_SENSE.",
         "* Fan PWM is driven straight from GPIO23, as in the ThermoX firmware README.",
     ], 8.3)
 
 
-def main():
-    c = canvas.Canvas(OUT, pagesize=A4)
-    c.setTitle("ThermoX ESP32 board v1 - toner transfer PCB")
+def make(out, a, b):
+    """a, b: the 25.4 mm and 22.86 mm row variants of one board size."""
+    c = canvas.Canvas(out, pagesize=A4)
+    c.setTitle(f"ThermoX ESP32 board {a.name} mm - toner transfer PCB")
     c.setAuthor("ThermoX")
-    a, b = L.VARIANTS["25.4"], L.VARIANTS["22.86"]
     for page in (lambda: page_toner(c, a, b.ROWS_MM), lambda: page_toner(c, b, a.ROWS_MM),
-                 lambda: page_placement(c, a), lambda: page_wiring(c), lambda: page_bom(c)):
+                 lambda: page_placement(c, a), lambda: page_wiring(c, a), lambda: page_bom(c, a)):
         page()
         c.showPage()
     c.save()
-    print("wrote", OUT)
+    print("wrote", out)
+
+
+def main():
+    make(OUT, L.VARIANTS["25.4"], L.VARIANTS["22.86"])
+    for size in (70, 80):
+        make(f"ThermoX_PCB_{size}x{size}mm.pdf", L.SMALL[(size, "25.4")], L.SMALL[(size, "22.86")])
 
 
 if __name__ == "__main__":

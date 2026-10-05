@@ -1,6 +1,14 @@
 # ThermoX ESP32 board v1 (single-sided, toner transfer)
 
-`ThermoX_PCB_toner_transfer.pdf` is ready to print:
+Three board sizes, same circuit and pin map:
+
+| PDF | Board | Notes |
+|---|---|---|
+| `ThermoX_PCB_70x70mm.pdf` | 70 x 70 mm | smallest; no battery-gauge footprints, 2 mounting holes |
+| `ThermoX_PCB_80x80mm.pdf` | 80 x 80 mm | same layout as 70 mm with a wider margin and 4 M3 holes |
+| `ThermoX_PCB_toner_transfer.pdf` | 86 x 67 mm | original; includes R3/R4/C1/J7 for a future battery gauge |
+
+Each PDF is laid out the same way:
 
 | Page | Content |
 |---|---|
@@ -9,6 +17,9 @@
 | 3 | Parts placement and drilling guide (top view, 2x) |
 | 4 | Wiring from the board connectors to the fan, buttons, BTS7960, OLED, DS18B20 and power |
 | 5 | Parts list, GPIO check, toner-transfer steps, first power-up checks |
+
+On the 70/80 mm boards the battery sense (GPIO35) is not routed; wire a divider to the GPIO35
+socket pin later if the battery gauge is enabled.
 
 Print only the copper page that matches your ESP32 (30-pin DevKit V1 clones come with either
 row spacing). Use a laser printer at 100 % / "Actual size" with no mirroring. The copper text
@@ -31,8 +42,8 @@ The Peltier current goes only through the BTS7960 power terminals, never through
 
 ```
 pip install reportlab shapely
-python3 drc.py       # clearance + connectivity check of both variants, prints the netlist
-python3 make_pdf.py  # writes ThermoX_PCB_toner_transfer.pdf
+python3 drc.py       # clearance + connectivity check of every variant, prints the netlist
+python3 make_pdf.py  # writes the three PDFs
 ```
 
 `layout.py` holds the pads and traces (2.54 mm grid, top view, copper on the bottom).
