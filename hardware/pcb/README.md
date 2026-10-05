@@ -4,9 +4,9 @@ Three board sizes, same circuit and pin map:
 
 | PDF | Board | Notes |
 |---|---|---|
-| `ThermoX_PCB_70x70mm.pdf` | 70 x 70 mm | smallest; no battery-gauge footprints, 2 mounting holes |
+| `ThermoX_PCB_70x70mm.pdf` | 70 x 70 mm | smallest, 2 mounting holes; gauge parts stand upright |
 | `ThermoX_PCB_80x80mm.pdf` | 80 x 80 mm | same layout as 70 mm with a wider margin and 4 M3 holes |
-| `ThermoX_PCB_toner_transfer.pdf` | 86 x 67 mm | original; includes R3/R4/C1/J7 for a future battery gauge |
+| `ThermoX_PCB_toner_transfer.pdf` | 86 x 67 mm | original, gauge parts lie flat |
 
 Each PDF is laid out the same way:
 
@@ -18,8 +18,9 @@ Each PDF is laid out the same way:
 | 4 | Wiring from the board connectors to the fan, buttons, BTS7960, OLED, DS18B20 and power |
 | 5 | Parts list, GPIO check, toner-transfer steps, first power-up checks |
 
-On the 70/80 mm boards the battery sense (GPIO35) is not routed; wire a divider to the GPIO35
-socket pin later if the battery gauge is enabled.
+Every board keeps footprints for the future battery gauge (GPIO35): R3 100k, R4 100k (1S Li-ion)
+or 27k (3S 12 V), C1 100 nF and the J7 BAT+ header. They are marked "BATTERY GAUGE (future)" with
+an orange box on the placement page and stay empty until `ENABLE_BATTERY_SENSE` is turned on.
 
 Print only the copper page that matches your ESP32 (30-pin DevKit V1 clones come with either
 row spacing). Use a laser printer at 100 % / "Actual size" with no mirroring. The copper text

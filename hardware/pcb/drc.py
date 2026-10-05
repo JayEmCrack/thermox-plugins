@@ -82,7 +82,7 @@ def netlist(B):
     for p in B.pads:
         if not p["net"].startswith("NC:"):
             out.setdefault(p["net"], []).append(f'{p["ref"]}.{p["pin"]}')
-    return out
+    return {n: sorted(m) for n, m in out.items()}
 
 
 if __name__ == "__main__":
@@ -90,11 +90,8 @@ if __name__ == "__main__":
     boards.update({f"{s}x{s} {k}": B for (s, k), B in L.SMALL.items()})
     ok = all([check(k, B) for k, B in boards.items()])
     a = netlist(L.VARIANTS["25.4"])
-    a_small = {n: m for n, m in a.items() if n not in ("BATT", "BATP")}
-    a_small["GND"] = [m for m in a["GND"] if not m.startswith(("J7", "R4", "C1"))]
     for k, B in boards.items():
-        ref = a if B.battery else a_small
-        if netlist(B) != ref:
+        if netlist(B) != a:
             print(f"netlist of {k} differs from the reference")
             ok = False
     for net, members in sorted(a.items()):

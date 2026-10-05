@@ -287,7 +287,9 @@ def page_placement(c, B):
         c.setLineWidth(0.8)
         if not comp["fit"]:
             c.setDash(2, 1.5)
-        lab = f'{comp["ref"]} {comp["value"]}' if comp["fit"] else f'{comp["ref"]} empty'
+        long = abs(ax - bx) + abs(ay - by) >= 4
+        lab = f'{comp["ref"]} {comp["value"]}' if comp["fit"] else (
+            f'{comp["ref"]} empty' if long else comp["ref"])
         if ax == bx:
             w, h = v.d(2.6), abs(pa[1] - pb[1]) - v.d(3.0)
             c.rect(pa[0] - w / 2, min(pa[1], pb[1]) + v.d(1.5), w, h, stroke=1, fill=1)
@@ -299,9 +301,22 @@ def page_placement(c, B):
             c.rect(min(pa[0], pb[0]) + v.d(1.5), pa[1] - h / 2, w, h, stroke=1, fill=1)
             c.setDash()
             text(c, (pa[0] + pb[0]) / 2, pa[1] - 2.0, lab, 5.8, "Helvetica-Bold", col, "c")
-    if B.battery:
+    if B.name == "86x67":
         px, py = v.p((6.95, 9.0))
         label_bg(c, px, py - 2.2, "C1 empty", 5.8, color=Color(0.45, 0.45, 0.45), anchor="r")
+
+    # Battery gauge group (future)
+    gx0, gy0, gx1, gy1 = B.gauge_box
+    p0, p1 = v.p((gx0, gy0)), v.p((gx1, gy1))
+    c.setStrokeColor(ORANGE)
+    c.setLineWidth(1.2)
+    c.setDash(4, 2)
+    c.rect(p0[0], p1[1], p1[0] - p0[0], p0[1] - p1[1], stroke=1, fill=0)
+    c.setDash()
+    for i, ln in enumerate(["BATTERY GAUGE", "(future, leave empty)", "R3 R4 C1 J7"]):
+        px, py = v.p((gx0 - 0.15, gy0 + 1.6 + i * 0.62))
+        label_bg(c, px, py, ln, 6.3 if i == 0 else 5.8, "Helvetica-Bold" if i == 0 else "Helvetica",
+                 ORANGE, "r")
 
     # JP1 wire link
     jp = next(k for k in B.components if k["ref"] == "JP1")
@@ -488,13 +503,16 @@ def page_bom(c, B):
         ("J3", "3-pin male header", "DS18B20: VCC(3V3) GND DATA"),
         ("J4", "4-pin male header", "SUNON fan: 12V GND TACH PWM"),
         ("J5, J6", "2-pin male header (x2)", "buttons: GND + signal"),
-    ] + ([("J7", "2-pin male header", "battery sense, future (can be left off)")] if B.battery else []) + [
         ("J8", "3-way screw terminal, 5.08 mm", "power in: 12V GND 5V"),
         ("R1", "4.7 kohm, 1/4 W", "DS18B20 DATA pull-up to 3V3"),
         ("R2", "10 kohm, 1/4 W", "fan tach pull-up to 3V3 (GPIO34 has none)"),
-    ] + ([("R3, R4, C1", "leave EMPTY", "future battery gauge, see notes")] if B.battery else []) + [
         ("JP1", "wire link (cut resistor leg)", "joins left and right GND"),
         ("PCB", "single-sided copper clad", f"at least {B.BOARD_W + 4:.0f} x {B.BOARD_H + 4:.0f} mm"),
+        ("", "BATTERY GAUGE (future) - leave these EMPTY now:", ""),
+        ("R3", "100 kohm, 1/4 W", "divider top: BAT+ to GPIO35"),
+        ("R4", "100k (1S Li-ion) or 27k (3S 12V)", "divider bottom: GPIO35 to GND"),
+        ("C1", "100 nF ceramic", "smooths the GPIO35 reading"),
+        ("J7", "2-pin male header", "BAT+ wire from the battery, and GND"),
     ])
     y -= 3 * mm
     text(c, 15 * mm, y, "GPIO check (current ThermoX pin map, nothing changed)", 9.5, "Helvetica-Bold")
@@ -511,7 +529,7 @@ def page_bom(c, B):
         ("SUNON fan PWM", "GPIO23", "J4 PWM"),
         ("SUNON fan tach / FG", "GPIO34", "J4 TACH (+ R2 10k)"),
         ("Battery sense (future, off)", "GPIO35",
-         "R3/R4 divider -> J7" if B.battery else "not on this board (wire later)"),
+         "R3/R4/C1 divider -> J7"),
     ])
     y -= 3 * mm
     y = paragraph(c, 15 * mm, y, [
@@ -535,8 +553,7 @@ def page_bom(c, B):
         "",
         "**Notes",
         "* For the 30-pin DevKit V1 only. Page 1 = rows 25.4 mm apart, page 2 = rows 22.86 mm. 38-pin will NOT fit.",
-        "* Battery gauge (later): " + ("R3 top, R4 bottom; " if B.battery else "divider from BAT+ to the GPIO35 "
-        "socket pin; ") + "GPIO35 must stay under 3.1 V. 1S Li-ion: 100k/100k.",
+        "* Battery gauge (later): fit R3, R4, C1, J7; GPIO35 must stay under 3.1 V. 1S Li-ion: 100k/100k.",
         "   3S 12 V pack: 100k/27k and set BATT_DIVIDER = 4.7 in the firmware. Then ENABLE_BATTERY_SENSE.",
         "* Fan PWM is driven straight from GPIO23, as in the ThermoX firmware README.",
     ], 8.3)
