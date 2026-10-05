@@ -88,10 +88,12 @@ def netlist(B):
 if __name__ == "__main__":
     boards = {f"86x67 {k}": B for k, B in L.VARIANTS.items()}
     boards.update({f"{s}x{s} {k}": B for (s, k), B in L.SMALL.items()})
+    boards.update({f"60x60 {k}": B for k, B in L.SIXTY.items()})
     ok = all([check(k, B) for k, B in boards.items()])
     a = netlist(L.VARIANTS["25.4"])
     for k, B in boards.items():
-        if netlist(B) != a:
+        ref = a if B.fan12v else {n: m for n, m in a.items() if n != "12V"}
+        if netlist(B) != ref:
             print(f"netlist of {k} differs from the reference")
             ok = False
     for net, members in sorted(a.items()):

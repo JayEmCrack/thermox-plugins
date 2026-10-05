@@ -169,7 +169,7 @@ def build(rx=23):
 
     rows_mm = (RX - LX) * U
     return SimpleNamespace(
-        name="86x67", battery=True, gauge_box=(2.35, 5.35, 10.15, 11.65), **board_geometry(BX0, BY0, BX1, BY1),
+        name="86x67", battery=True, fan12v=True, gauge_box=(2.35, 5.35, 10.15, 11.65), **board_geometry(BX0, BY0, BX1, BY1),
         RX=RX, MID=MID, ROWS_MM=rows_mm, pads=pads, components=components, traces=traces,
         titles=[((1.35, 3.62), "J4 FAN", "r"), ((3.5, 17.05), "J1 BTS7960 A", "l"),
                 ((3.5, 18.35), "J9 BTS7960 B", "l"), ((25.0, 7.3), "J2 OLED SH1107", "l"),
@@ -281,7 +281,7 @@ def build_small(rx=18.5, size_mm=70):
         holes = [(25.8, 1.0), (25.8, 25.4)]
     rows_mm = (RX - LX2) * U
     return SimpleNamespace(
-        name=f"{size_mm}x{size_mm}", battery=True, gauge_box=(2.35, 5.35, 5.75, 10.65), **board_geometry(bx0, by0, bx1, by1),
+        name=f"{size_mm}x{size_mm}", battery=True, fan12v=True, gauge_box=(2.35, 5.35, 5.75, 10.65), **board_geometry(bx0, by0, bx1, by1),
         RX=RX, MID=MID, ROWS_MM=rows_mm, pads=pads, components=components, traces=traces,
         holes=holes, MODULE=(MID - 5.57, 2.7, MID + 5.57, 24.15),
         copper_text=[("THERMOX", MID + 0.5, 10.5, 3.2),
@@ -298,3 +298,97 @@ def build_small(rx=18.5, size_mm=70):
 VARIANTS = {"25.4": build(23), "22.86": build(22)}
 SMALL = {(size, key): build_small(rx, size)
          for size in (70, 80) for key, rx in (("25.4", 18.5), ("22.86", 17.5))}
+
+
+def build60(rx=16.5):
+    """60 x 60 mm board. The fan's red +12V wire goes straight to the 12V supply, so J4 is
+    GND/TACH/PWM and J8 is a 2-pin 5V input. rx = 16.5 gives 25.4 mm rows, 15.5 gives 22.86 mm."""
+    RX, LX3 = rx, 6.5
+    MID = (LX3 + RX) / 2
+    XO, XG, X3, XR1, XDS = RX + 2, RX + 3.3, RX + 4.6, RX + 1.3, RX + 5.9
+    pads, components, traces = [], [], []
+
+    def pad(ref, pin, x, y, net, d=PAD_HDR, drill=DRILL_HDR, label=None):
+        pads.append(dict(ref=ref, pin=pin, x=x, y=y, net=net or f"NC:{ref}.{pin}",
+                         d=d, drill=drill, label=label))
+
+    def header(ref, title, pins, horizontal=False):
+        for pin, x, y, net in pins:
+            pad(ref, pin, x, y, net)
+        components.append(dict(ref=ref, kind="hdr", title=title,
+                               pins=[(p[0], p[1], p[2]) for p in pins], horizontal=horizontal))
+
+    def part(ref, kind, value, a, b, fit):
+        pad(ref, "1", a[0], a[1], a[2], d=PAD_RES, drill=DRILL_RES)
+        pad(ref, "2", b[0], b[1], b[2], d=PAD_RES, drill=DRILL_RES)
+        components.append(dict(ref=ref, kind=kind, value=value, a=a[:2], b=b[:2], fit=fit))
+
+    def tr(net, w, *pts):
+        traces.append((net, w, list(pts)))
+
+    for k in range(15):
+        y = ROW0 + 1 + k
+        pad("U1L", LEFT_PINS[k], LX3, y, LEFT_NETS[k], label=LEFT_PINS[k])
+        pad("U1R", RIGHT_PINS[k], RX, y, RIGHT_NETS[k], label=RIGHT_PINS[k])
+    components.append(dict(ref="U1", kind="esp32"))
+
+    header("J4", "FAN", [("GND", 1, 3.5, "GND"), ("TACH", 2, 3.5, "TACH"), ("PWM", 3, 3.5, "PWM")],
+           horizontal=True)
+    header("J7", "BATT SENSE (future)", [("GND", 1, 6, "GND"), ("BAT+", 2, 6, "BATP")], horizontal=True)
+    header("J5", "BTN1", [("GND", 1, 12, "GND"), ("B1", 2, 12, "BTN1")], horizontal=True)
+    header("J6", "BTN2", [("GND", 1, 13, "GND"), ("B2", 2, 13, "BTN2")], horizontal=True)
+    header("J1", "BTS7960 A", [("R_EN", 2, 14, "REN"), ("RPWM", 2, 15, "RPWM"), ("LPWM", 2, 16, "LPWM")])
+    header("J9", "BTS7960 B", [("L_EN", 2, 19, "LEN"), ("GND", 2, 20, "GND"), ("VCC", 2, 21, "5V")])
+    header("J8", "5V IN", [("GND", 1, 22.6, "GND"), ("5V", 2, 22.6, "5V")], horizontal=True)
+    header("J2", "OLED SH1107", [("VCC", XO, 8, "3V3"), ("GND", XO, 9, "GND"),
+                                 ("SCL", XO, 10, "SCL"), ("SDA", XO, 11, "SDA")])
+    header("J3", "DS18B20", [("VCC", XDS, 21, "3V3"), ("GND", XDS, 22, "GND"), ("DATA", XDS, 23, "DQ")])
+    part("R1", "res", "4.7k", (XR1, 21, "3V3"), (XR1, 23, "DQ"), True)
+    part("R2", "res", "10k", (4, 1.0, "3V3"), (4, 5.0, "TACH"), True)
+    # Battery gauge (future, left empty): parts stand upright, 5.08 mm pad spacing
+    part("R3", "res", "DNP", (3, 6, "BATP"), (3, 8, "BATT"), False)
+    part("R4", "res", "DNP", (3, 9, "BATT"), (1, 9, "GND"), False)
+    part("C1", "cap", "DNP", (3, 10, "BATT"), (1, 10, "GND"), False)
+    pad("JP1", "1", 8, 22, "GND")
+    pad("JP1", "2", RX - 2.5, 22, "GND")
+    components.append(dict(ref="JP1", kind="jumper", a=(8, 22), b=(RX - 2.5, 22)))
+
+    tr("TACH", W_SIG, (LX3, 10), (5, 10), (5, 5.0), (2, 5.0), (2, 3.5))
+    tr("PWM", W_SIG, (RX, 7), (RX + 1.5, 7), (RX + 1.5, 2.0), (3, 2.0), (3, 3.5))
+    tr("3V3", W_PWR, (RX, 21), (XDS, 21))
+    tr("3V3", W_PWR, (X3, 21), (X3, 1.0), (4, 1.0))
+    tr("3V3", W_PWR, (X3, 8), (XO, 8))
+    tr("SCL", W_SIG, (RX, 8), (RX + 1, 8), (RX + 1, 10), (XO, 10))
+    tr("SDA", W_SIG, (RX, 11), (XO, 11))
+    tr("GND", W_PWR, (RX, 20), (XG, 20), (XG, 9), (XO, 9))
+    tr("GND", W_PWR, (RX, 20), (RX - 1, 20), (RX - 1, 22), (XDS, 22))
+    tr("GND", W_PWR, (RX - 2.5, 22), (RX - 1, 22))
+    tr("DQ", W_SIG, (LX3, 17), (9.5, 17), (9.5, 23), (XDS, 23))
+    tr("GND", W_BUS, (1, 3.5), (1, 22.6))
+    tr("GND", W_PWR, (LX3, 20), (1, 20))
+    tr("GND", W_PWR, (LX3, 20), (8, 20), (8, 22))
+    tr("5V", W_PWR, (LX3, 21), (2, 21), (2, 22.6))
+    tr("BATP", W_SIG, (2, 6), (3, 6))
+    tr("BATT", W_SIG, (3, 8), (3, 11), (LX3, 11))
+    for net, y in [("BTN1", 12), ("BTN2", 13), ("REN", 14), ("RPWM", 15), ("LPWM", 16), ("LEN", 19)]:
+        tr(net, W_SIG, (LX3, y), (2, y))
+
+    side = 60 / U
+    bx0, by0 = 0.0, 0.2
+    rows_mm = (RX - LX3) * U
+    return SimpleNamespace(
+        name="60x60", battery=True, fan12v=False, gauge_box=(0.4, 5.35, 3.75, 10.65),
+        **board_geometry(bx0, by0, bx0 + side, by0 + side),
+        RX=RX, MID=MID, ROWS_MM=rows_mm, pads=pads, components=components, traces=traces,
+        holes=[(1.0, 1.3), (22.5, 1.3)], MODULE=(MID - 5.57, 2.7, MID + 5.57, 24.15),
+        copper_text=[("THERMOX", MID + 0.5, 10.5, 3.2), (f"60  {rows_mm:.2f}", MID + 0.5, 12.5, 2.2)],
+        JUMPERS=[("JP1", "GND")],
+        titles=[((0.35, 3.62), "J4 FAN", "r"), ((1.5, 17.05), "J1 BTS7960 A", "l"),
+                ((1.5, 18.35), "J9 BTS7960 B", "l"), ((XO - 0.5, 7.3), "J2 OLED", "l"),
+                ((XDS - 0.5, 20.3), "J3 DS18B20", "l"), ((2.7, 22.75), "J8 5V IN", "l")],
+        tags=[(0.35, 6, "J7 BAT  GND | BAT+"), (0.35, 12, "J5 BTN1  GND | B1"),
+              (0.35, 13, "J6 BTN2  GND | B2")],
+    )
+
+
+SIXTY = {"25.4": build60(16.5), "22.86": build60(15.5)}

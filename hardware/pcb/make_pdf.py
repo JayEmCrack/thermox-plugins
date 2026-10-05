@@ -248,6 +248,10 @@ def page_placement(c, B):
             for name, x, y in pins:
                 px, py = v.p((x - 0.55, y))
                 label_bg(c, px, py - 2.2, name, 6.5, color=GREEN, anchor="r")
+        elif ref == "J8":
+            for name, x, y in pins:
+                px, py = v.p((x, y + 0.85))
+                text(c, px, py, name, 6.3, "Helvetica-Bold", GREEN, "c")
         elif ref in ("J2", "J3"):
             for name, x, y in pins:
                 px, py = v.p((x + 0.6, y))
@@ -261,19 +265,22 @@ def page_placement(c, B):
         px, py = v.p((x, y))
         label_bg(c, px, py - 2.2, s, 6.2, color=GREEN, anchor="r")
     px, py = v.p((B.BX0, B.BY1))
-    text(c, px, py - 4 * mm, "J4 fan: red 12V, black GND, yellow FG, blue PWM.   J3 DS18B20: red VCC, "
-         "black GND, yellow DATA.", 7, "Helvetica", GREEN)
+    fan = ("J4 fan: red 12V, black GND, yellow FG, blue PWM." if B.fan12v else
+           "J4 fan: black GND, yellow FG, blue PWM (red +12V goes to the 12V supply).")
+    text(c, px, py - 4 * mm, fan + "   J3 DS18B20: red VCC, black GND, yellow DATA.", 7, "Helvetica",
+         GREEN)
     text(c, px, py - 7.5 * mm, ("J7 (battery gauge) is for later: leave it open. " if B.battery else "")
          + "Power wires enter J8 from the bottom edge.", 7, "Helvetica", GREEN)
 
     # Screw terminal body
-    p0, p1 = v.p((0.0, 22.6)), v.p((6.0, 25.7))
-    c.setStrokeColor(GREEN)
-    c.setLineWidth(0.9)
-    c.rect(p0[0], p1[1], p1[0] - p0[0], p0[1] - p1[1], stroke=1, fill=0)
-    for name, x, y in [("12V", 1, 24), ("GND", 3, 24), ("5V", 5, 24)]:
-        px, py = v.p((x, y - 0.75))
-        text(c, px, py, name, 6.5, "Helvetica-Bold", GREEN, "c")
+    if any(k["kind"] == "terminal" for k in B.components):
+        p0, p1 = v.p((0.0, 22.6)), v.p((6.0, 25.7))
+        c.setStrokeColor(GREEN)
+        c.setLineWidth(0.9)
+        c.rect(p0[0], p1[1], p1[0] - p0[0], p0[1] - p1[1], stroke=1, fill=0)
+        for name, x, y in [("12V", 1, 24), ("GND", 3, 24), ("5V", 5, 24)]:
+            px, py = v.p((x, y - 0.75))
+            text(c, px, py, name, 6.5, "Helvetica-Bold", GREEN, "c")
 
     # Resistors / capacitor
     for comp in B.components:
@@ -288,8 +295,10 @@ def page_placement(c, B):
         if not comp["fit"]:
             c.setDash(2, 1.5)
         long = abs(ax - bx) + abs(ay - by) >= 4
-        lab = f'{comp["ref"]} {comp["value"]}' if comp["fit"] else (
-            f'{comp["ref"]} empty' if long else comp["ref"])
+        if not long:
+            lab = comp["ref"]
+        else:
+            lab = f'{comp["ref"]} {comp["value"]}' if comp["fit"] else f'{comp["ref"]} empty'
         if ax == bx:
             w, h = v.d(2.6), abs(pa[1] - pb[1]) - v.d(3.0)
             c.rect(pa[0] - w / 2, min(pa[1], pb[1]) + v.d(1.5), w, h, stroke=1, fill=1)
@@ -372,6 +381,21 @@ HARNESS = [
 ]
 
 
+def harness(B):
+    if B.fan12v:
+        return HARNESS
+    out = []
+    for title, device, rows in HARNESS:
+        if title.startswith("J4"):
+            device = "SUNON fan (red +12V -> supply)"
+            rows = [r for r in rows if r[0] != "12V"]
+        elif title.startswith("J8"):
+            title, device = "J8  5V IN", "Power (2-pin)"
+            rows = [r for r in rows if r[0] != "12V"]
+        out.append((title, device, rows))
+    return out
+
+
 def page_wiring(c, B):
     text(c, 15 * mm, PH - 16 * mm, "Wiring (line route): board connectors to ThermoX parts", 12,
          "Helvetica-Bold")
@@ -382,7 +406,7 @@ def page_wiring(c, B):
     xd0, xd1 = 120, 195      # device box
     pitch, gap = 4.5, 3.2
     y = 30.0
-    for title, device, rows in [h for h in HARNESS if B.battery or not h[0].startswith("J7")]:
+    for title, device, rows in harness(B):
         h = len(rows) * pitch + 6
         # board side box
         c.setStrokeColor(GREEN)
@@ -447,7 +471,8 @@ def page_wiring(c, B):
     blk(155, top, 40, bh, "Peltier (TEC)", "on BTS7960 M+ / M-", RED)
     blk(105, top + 14, 36, bh, "Buck 12V -> 5V", "set 5.0 V first", DARK)
     blk(155, top + 14, 40, bh, "Board J8: 5V", "", GREEN)
-    blk(105, top + 28, 36, bh, "Board J8: 12V", "for the SUNON fan", GREEN)
+    blk(105, top + 28, 36, bh, "Board J8: 12V" if B.fan12v else "SUNON fan red wire",
+        "for the SUNON fan" if B.fan12v else "+12V straight from the supply", GREEN)
     ym = top + bh / 2
     ln([(47, ym), (55, ym)], RED)
     ln([(85, ym), (105, ym)], RED)
@@ -501,9 +526,11 @@ def page_bom(c, B):
         ("J1, J9", "3-pin male header (x2)", "BTS7960: R_EN RPWM LPWM / L_EN GND VCC"),
         ("J2", "4-pin male header", "OLED: VCC(3V3) GND SCL SDA"),
         ("J3", "3-pin male header", "DS18B20: VCC(3V3) GND DATA"),
-        ("J4", "4-pin male header", "SUNON fan: 12V GND TACH PWM"),
+        ("J4", "4-pin male header", "SUNON fan: 12V GND TACH PWM") if B.fan12v else
+        ("J4", "3-pin male header", "SUNON fan: GND TACH PWM (red wire to 12V)"),
         ("J5, J6", "2-pin male header (x2)", "buttons: GND + signal"),
-        ("J8", "3-way screw terminal, 5.08 mm", "power in: 12V GND 5V"),
+        ("J8", "3-way screw terminal, 5.08 mm", "power in: 12V GND 5V") if B.fan12v else
+        ("J8", "2-pin male header (or solder wires)", "power in: GND 5V from the buck"),
         ("R1", "4.7 kohm, 1/4 W", "DS18B20 DATA pull-up to 3V3"),
         ("R2", "10 kohm, 1/4 W", "fan tach pull-up to 3V3 (GPIO34 has none)"),
         ("JP1", "wire link (cut resistor leg)", "joins left and right GND"),
@@ -574,6 +601,7 @@ def make(out, a, b):
 
 def main():
     make(OUT, L.VARIANTS["25.4"], L.VARIANTS["22.86"])
+    make("ThermoX_PCB_60x60mm.pdf", L.SIXTY["25.4"], L.SIXTY["22.86"])
     for size in (70, 80):
         make(f"ThermoX_PCB_{size}x{size}mm.pdf", L.SMALL[(size, "25.4")], L.SMALL[(size, "22.86")])
 

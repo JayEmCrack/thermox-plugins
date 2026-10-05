@@ -1,10 +1,11 @@
 # ThermoX ESP32 board v1 (single-sided, toner transfer)
 
-Three board sizes, same circuit and pin map:
+Four board sizes, same circuit and pin map:
 
 | PDF | Board | Notes |
 |---|---|---|
-| `ThermoX_PCB_70x70mm.pdf` | 70 x 70 mm | smallest, 2 mounting holes; gauge parts stand upright |
+| `ThermoX_PCB_60x60mm.pdf` | 60 x 60 mm | smallest, 2 holes; fan red +12V wire goes straight to the supply, J4 = GND/TACH/PWM, J8 = 2-pin 5V input |
+| `ThermoX_PCB_70x70mm.pdf` | 70 x 70 mm | 2 mounting holes; gauge parts stand upright |
 | `ThermoX_PCB_80x80mm.pdf` | 80 x 80 mm | same layout as 70 mm with a wider margin and 4 M3 holes |
 | `ThermoX_PCB_toner_transfer.pdf` | 86 x 67 mm | original, gauge parts lie flat |
 
@@ -44,7 +45,7 @@ The Peltier current goes only through the BTS7960 power terminals, never through
 ```
 pip install reportlab shapely
 python3 drc.py       # clearance + connectivity check of every variant, prints the netlist
-python3 make_pdf.py  # writes the three PDFs
+python3 make_pdf.py  # writes the four PDFs
 ```
 
 `layout.py` holds the pads and traces (2.54 mm grid, top view, copper on the bottom).
