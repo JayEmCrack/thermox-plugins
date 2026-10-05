@@ -1,6 +1,6 @@
 # ThermoX design drafts: 3D model files
 
-Six first-draft designs, in millimetres, Z up. They share one set of parts inside: 3S2P 21700 pack, **LM2596 buck module** (43 x 21 x 14 mm, 9-12.6 V in, 5 V out for the ESP32), BTS7960 without heatsink, 30-pin ESP32, SUNON 40 x 40 x 28 mm fan, copper heatsink, TEC1-12706 and a water cup. Only the outside, the handle and the slots differ. The parts and sizes match the "ThermoX Layout" drawing and the "ThermoX 3D View" page.
+Seven first-draft designs, in millimetres, Z up. They share one set of parts inside (the Duo has two Peltiers and two fans instead of one): 3S2P 21700 pack, **LM2596 buck module** (43 x 21 x 14 mm, 9-12.6 V in, 5 V out for the ESP32), BTS7960 without heatsink, 30-pin ESP32, SUNON 40 x 40 x 28 mm fan, copper heatsink, TEC1-12706 and a water cup. Only the outside, the handle and the slots differ. The parts and sizes match the "ThermoX Layout" drawing and the "ThermoX 3D View" page.
 
 | Folder | Design | Size |
 |---|---|---|
@@ -10,6 +10,7 @@ Six first-draft designs, in millimetres, Z up. They share one set of parts insid
 | `bottle_pebble/` | Smooth mint body with a gentle belly, low dome lid, peach silicone loop | 94 mm across, 263 mm tall (285) |
 | `bottle_deco/` | Black, burgundy and gold, stepped base and lid, fluted waist | 96 mm across, 263 mm tall (281) |
 | `retro/` | Teal and cream box, chrome corner beads, front display, chrome handle bar | 133 x 82 x 209 mm |
+| `duo/` | **Two TEC1-12706** under one flat cup, two fans, one 88 x 50 mm copper heatsink; navy flask with copper trim and aluminium grilles | 119 x 69 mm, 250 mm tall (266 with the loop up) |
 
 The bottles are 14 mm taller than the first drafts because the LM2596 module lies under the battery. In the retro box it lies on a shelf above the battery.
 
@@ -30,4 +31,4 @@ python3 make_models.py cad --extras   # also STL files and Blender scripts
 
 STEP needs `pip install cadquery`; the other files need only Python. The Blender script is not tested inside Blender; use the OBJ if it errors.
 
-Checks run on a computer: no overlapping boxes, every mesh closed and facing outward, every STEP file re-opens with all its solids (109 classic, 117 modern, 131 trail, 102 pebble, 127 deco, 96 retro) and the expected bounding box, and in the bottles every inside part stays at least 0.4 mm inside the wall (the tightest are the foam sleeve around the cup and, in the Pebble bottle, the BTS7960 board). Sizes for the ESP32, BTS7960, OLED, BMS and LM2596 are typical values; measure your parts. The weight (about 1.4 kg with water, plastic shell) is my estimate. Finishes and materials are suggestions, not tested.
+Checks run on a computer: no overlapping boxes, every mesh closed and facing outward, every STEP file re-opens with all its solids (109 classic, 117 modern, 131 trail, 102 pebble, 127 deco, 96 retro, 146 duo) and the expected bounding box, and in the bottles and the Duo every inside part stays at least 0.4 mm inside the wall (the tightest are the foam sleeve around the cup and, in the Pebble bottle, the BTS7960 board). Sizes for the ESP32, BTS7960, OLED, BMS and LM2596 are typical values; measure your parts. The weight (about 1.4 kg with water, plastic shell) is my estimate. Finishes and materials are suggestions, not tested.

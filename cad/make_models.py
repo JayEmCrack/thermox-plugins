@@ -42,6 +42,24 @@ def lathe(name, grp, pts, color, label=None, alpha=1.0, skin=False, metal=None, 
                   rotz=0.0, rotx=0.0, roty=0.0, edges=False, skin=skin, metal=metal, flow=flow, label=label or name))
 
 
+def stad(name, grp, cx, cy, a, r, z0, z1, color, label=None, t=None, alpha=1.0, skin=False, metal=None, flow=None):
+    """Stadium (rounded-end) prism: straight length a along X, end radius r. Hollow when the wall thickness t is given."""
+    P.append(dict(kind="stad", name=name, grp=grp, cx=cx, cy=cy, a=a, r=r, t=t, z0=z0, z1=z1, color=color, alpha=alpha,
+                  rotz=0.0, rotx=0.0, roty=0.0, edges=False, skin=skin, metal=metal, flow=flow, label=label or name))
+
+
+def stad_outline(cx, cy, a, r, n=24):
+    """Counter-clockwise outline of a stadium: right half circle, then left half circle."""
+    pts = []
+    for i in range(n + 1):
+        ang = -math.pi / 2 + math.pi * i / n
+        pts.append((cx + a / 2 + r * math.cos(ang), cy + r * math.sin(ang)))
+    for i in range(n + 1):
+        ang = math.pi / 2 + math.pi * i / n
+        pts.append((cx - a / 2 + r * math.cos(ang), cy + r * math.sin(ang)))
+    return pts
+
+
 def shell_pts(outer, t=1.5):
     """Hollow wall of thickness t from the outer profile (bottom to top)."""
     return [tuple(q) for q in outer] + [(r - t, z) for r, z in reversed(outer)]
@@ -352,6 +370,137 @@ def build_deco():
     return finish_design("deco", "Deco bottle", (LOWER, MID, UPPER))
 
 
+def build_duo():
+    """Duo: two TEC1-12706 under one wide flat cup, in a compact flask-shaped body (stadium cross-section).
+    119 x 69 mm, 250 mm tall. Battery and electronics at the bottom, two fans and one long heatsink in the middle."""
+    P.clear()
+    NAVY, NAVY2, ALU, COPPER, CHAR, RUBBER, SLOT = "#1f2a44", "#2c3a5c", "#c3cad1", "#c27a4a", "#24272c", "#15171a", "#0c0f16"
+    A, R, T = 50.0, 34.5, 1.5                      # straight length, end radius, wall
+    TOPD = 250
+    # ---- body
+    stad("base_pad", "shell", 0, 0, A, R - 0.5, 0, 3, RUBBER, "Rubber base pad, 3 mm", skin=True)
+    stad("body_lower", "shell", 0, 0, A, R, 3, 98, NAVY, "Lower body, holds the battery and electronics", t=T, skin=True)
+    stad("body_mid", "shell", 0, 0, A, R, 98, 176, NAVY2, "Middle band: two fans, one long heatsink, two Peltiers", t=T, skin=True)
+    stad("body_upper", "shell", 0, 0, A, R, 176, 238, NAVY, "Upper body around the insulated flat cup", t=T, skin=True)
+    for k, (z0, z1) in enumerate(((96.5, 99.5), (174.5, 177.5), (236.5, 239.5)), start=1):
+        stad("trim_band_%d" % k, "shell", 0, 0, A, R + 0.8, z0, z1, COPPER, "Copper trim band", t=1.2, skin=True, metal=0.6)
+    stad("lid", "lid", 0, 0, A, R, 238, 246, CHAR, "Removable lid, 12 mm", skin=True)
+    stad("lid_cap", "lid", 0, 0, A, R - 2.5, 246, TOPD, CHAR, "Lid top", skin=True)
+    stad("lid_ring", "lid", 0, 0, A, R - 2.0, 245.5, 246.5, COPPER, "Copper ring on the lid", t=0.8, skin=True, metal=0.6)
+    # exhaust grilles on the two flat faces (the fins run front to back, so the air leaves here)
+    for sy in (-1, 1):
+        y0, y1 = (R - 0.4, R + 0.6) if sy > 0 else (-R - 0.6, -R + 0.4)
+        box("grille_%s" % ("front" if sy < 0 else "rear"), "shell", -40, 40, y0, y1, 131, 162, ALU, "Aluminium exhaust grille", skin=True, metal=0.5)
+        for j in range(6):
+            z = 133.5 + 4.4 * j
+            yy0, yy1 = (R + 0.5, R + 0.8) if sy > 0 else (-R - 0.8, -R - 0.5)
+            box("exhaust_slot_%s_%d" % ("front" if sy < 0 else "rear", j + 1), "shell", -36, 36, yy0, yy1, z, z + 2.4, SLOT, "Exhaust slot", skin=True)
+    # intake slots round the two rounded ends, under the fans
+    n = 0
+    for sx in (-1, 1):
+        for ang in (-60, -30, 0, 30, 60):
+            a = ang if sx > 0 else 180 + ang
+            cxe = sx * A / 2
+            px, py = cxe + (R - 0.2) * math.cos(math.radians(a)), (R - 0.2) * math.sin(math.radians(a))
+            n += 1
+            box("intake_slot_%d" % n, "shell", px - 0.9, px + 0.9, py - 6, py + 6, 99.5, 104.5, SLOT, "Air intake slot", rotz=a, skin=True)
+    for sx in (-1, 1):
+        box("strap_lug_%s" % ("L" if sx < 0 else "R"), "shell", min(sx * 58.5, sx * 63), max(sx * 58.5, sx * 63), -3, 3, 206, 216, COPPER, "Strap lug for a shoulder strap", skin=True, metal=0.6)
+    box("nameplate", "shell", -14, 14, -R - 0.9, -R + 0.6, 205, 213, COPPER, "Name plate, 28 x 8 mm", skin=True, metal=0.6)
+
+    # ---- battery bay: LM2596 under the pack, BTS7960 and ESP32 at the two rounded ends
+    lm2596(0, 0, 4, "x")
+    box("pack_carrier", "elec", -31.5, 31.5, -21, 21, 18, 19, "#8d99a3", "Carrier plate that holds the pack above the buck module, 1 mm")
+    for ix, cx in enumerate((-21, 0, 21)):
+        for iy, cy in enumerate((-10.5, 10.5)):
+            cyl("cell_%d%d" % (ix + 1, iy + 1), "elec", cx, cy, 10.5, 19, 89, "#2f8f6f", "21700 cell, 21 x 70 mm (3S2P pack, 6 cells)")
+    box("bms_3s", "elec", -30, 30, -20, 20, 90, 93, "#3f6f9a", "3S battery protection board (BMS), size depends on the part")
+    box("bts7960", "elec", 32.5, 44.5, -25, 25, 4, 54, "#1e5aa8", "BTS7960 board without heatsink, about 50 x 50 mm (drives both Peltiers)")
+    box("esp32_30pin", "elec", -45.5, -32.5, -14, 14, 5, 57, "#1d2a33", "ESP32 30-pin board, about 52 x 28 mm (standing)")
+    stad("bulkhead", "shell", 0, 0, A, R - T - 0.5, 96, 98, "#8d99a3", "Bulkhead between battery bay and air path, 2 mm")
+
+    # ---- two fans, one heatsink (fins run front to back), two Peltiers, one spreader plate
+    FRAME = "#3a4650"
+    for f, cx in (("L", -21.0), ("R", 21.0)):
+        z0 = 106
+        box("fan%s_frame_a" % f, "fan", cx - 20, cx + 20, -20, -17, z0, z0 + 28, FRAME, "SUNON fan %s, 40 x 40 x 28 mm" % f)
+        box("fan%s_frame_b" % f, "fan", cx - 20, cx + 20, 17, 20, z0, z0 + 28, FRAME, "SUNON fan %s, 40 x 40 x 28 mm" % f)
+        box("fan%s_frame_c" % f, "fan", cx - 20, cx - 17, -17, 17, z0, z0 + 28, FRAME, "SUNON fan %s, 40 x 40 x 28 mm" % f)
+        box("fan%s_frame_d" % f, "fan", cx + 17, cx + 20, -17, 17, z0, z0 + 28, FRAME, "SUNON fan %s, 40 x 40 x 28 mm" % f)
+        cyl("fan%s_hub" % f, "fan", cx, 0, 8, z0 + 1, z0 + 27, "#7b8791", "Fan hub")
+        for i in range(7):
+            a = i * 360.0 / 7
+            bx_ = cx + 12.25 * math.cos(math.radians(a)); by = 12.25 * math.sin(math.radians(a))
+            box("fan%s_blade_%d" % (f, i + 1), "fan", bx_ - 4.25, bx_ + 4.25, by - 0.8, by + 0.8, z0 + 4, z0 + 24, "#98a4ad", "Fan blade", rotz=a)
+    for k in range(29):
+        xc = -42 + 3 * k
+        box("fin_%02d" % (k + 1), "heatsink", xc - 0.45, xc + 0.45, -25, 25, 134, 159, "#c98a5e", "Heatsink fin, 0.9 mm thick, 25 mm tall (fins run front to back)")
+    box("heatsink_base", "heatsink", -44, 44, -25, 25, 159, 164, "#c98a5e", "Copper heatsink base, 88 x 50 x 5 mm, shared by both Peltiers")
+    FOAM = "#e0c88a"
+    for nm, (x0, x1, y0, y1) in (("a", (-44, -41, -25, 25)), ("b", (41, 44, -25, 25)), ("c", (-1, 1, -20, 20)), ("d", (-41, 41, -25, -20)), ("e", (-41, 41, 20, 25))):
+        box("foam_ring_" + nm, "thermal", x0, x1, y0, y1, 164, 168, FOAM, "Foam frame around the two Peltiers, 4 mm")
+    for f, cx in (("L", -21.0), ("R", 21.0)):
+        box("tec%s_hot_face" % f, "thermal", cx - 20, cx + 20, -20, 20, 164, 165, "#e8743b", "TEC1-12706 %s, heatsink side (hot when cooling)" % f)
+        box("tec%s_body" % f, "thermal", cx - 20, cx + 20, -20, 20, 165, 166.8, "#eceff1", "TEC1-12706 %s, 40 x 40 x 3.8 mm" % f)
+        box("tec%s_cold_face" % f, "thermal", cx - 20, cx + 20, -20, 20, 166.8, 167.8, "#3d9fd6", "TEC1-12706 %s, water side (cold when cooling)" % f)
+    box("water_plate", "thermal", -44, 44, -25, 25, 168, 176, "#b9c2c9", "Aluminium spreader plate, 88 x 50 x 8 mm, under the whole cup")
+
+    # ---- flat cup, insulation, water
+    stad("cup_floor", "cup", 0, 0, A, 28, 176, 179, "#c5ced6", "Cup floor, 3 mm aluminium")
+    stad("cup_wall", "cup", 0, 0, A, 28, 179, 238, "#c5ced6", "Flat aluminium cup, 104 x 54 mm inside", t=1.0, alpha=0.55)
+    stad("insulation_sleeve", "cup", 0, 0, A, 32.5, 179, 238, "#e0c88a", "Foam insulation, 4.5 mm", t=4.5, alpha=0.4)
+    stad("water", "water", 0, 0, A, 27, 179, 235, "#58b4e2", "Water, about 280 mL (56 mm deep)", alpha=0.55)
+
+    # ---- display, buttons, carry loop on the lid
+    box("oled_1_5in", "display", -30, 8, -19, 19, TOPD, TOPD + 3.2, "#0b1218", "1.5 inch OLED module, about 38 x 38 mm (on the lid)")
+    box("oled_screen", "display", -27, 5, -16, 16, TOPD + 3.2, TOPD + 3.4, "#9fe4ff", "OLED screen (128 x 128)")
+    for nm, (x0, x1, y0, y1) in (("a", (-33, 11, -22, -19)), ("b", (-33, 11, 19, 22)), ("c", (-33, -30, -19, 19)), ("d", (8, 11, -19, 19))):
+        box("oled_bezel_%s" % nm, "display", x0, x1, y0, y1, TOPD, TOPD + 3.6, COPPER, "Copper bezel around the display", metal=0.6)
+    for sy in (-9, 9):
+        cyl("button_%s" % ("1" if sy < 0 else "2"), "display", 20, sy, 3.4, TOPD, TOPD + 3.2, COPPER, "Push button (GPIO32 / GPIO33)", metal=0.6)
+    arch("loop", "Carry loop, grey webbing, 12 mm wide", 16.0, 12.0, 3.0, 12, 44.0, TOPD - 1.5, "#8b939c", 0.05, mount=COPPER, mount_metal=0.6)
+
+    ex = {"shell": (0, 0, 0), "lid": (0, 0, 85), "display": (0, 0, 85), "handle": (0, 0, 85), "cup": (0, 0, 55), "water": (0, 0, 55),
+          "thermal": (0, 0, 28), "heatsink": (0, 0, 0), "fan": (0, 0, -30), "elec": (0, 0, 0)}
+    pex = {"bms_3s": (0, 0, 22), "bts7960": (62, 0, 0), "esp32_30pin": (-62, 0, 0)}
+    for p in P:
+        p["ex"] = [0, -75, 0] if p["name"].startswith("lm2596_") else list(pex.get(p["name"], ex[p["grp"]]))
+    arrows = []
+    for sx in (-1, 1):
+        for ang in (-30, 0, 30):
+            a = ang if sx > 0 else 180 + ang
+            c, sn = math.cos(math.radians(a)), math.sin(math.radians(a))
+            arrows.append([sx * A / 2 + 52 * c, 52 * sn, 102, -c, -sn, 0, 16, "in"])
+    for cx in (-21, 21):
+        arrows.append([cx, 0, 107, 0, 0, 1, 26, "in"])
+    for sy in (-1, 1):
+        for cx in (-24, 0, 24):
+            arrows.append([cx, sy * 20, 146.5, 0, sy, 0, 30, "out"])
+    return dict(name="duo", title="Duo flask", parts=list(P), flow=arrows, profiles=None, kind="duo", body_h=TOPD,
+                stadium=dict(a=A, r_in=R - T))
+
+
+def duo_clearance(d):
+    """Smallest gap between the inside parts and the inside of the stadium wall (mm)."""
+    a, r = d["stadium"]["a"], d["stadium"]["r_in"]
+    worst = (1e9, "")
+    for p in d["parts"]:
+        if p["grp"] in ("shell", "lid", "display", "handle"):
+            continue
+        if p["kind"] == "box":
+            c = ((p["x0"] + p["x1"]) / 2, (p["y0"] + p["y1"]) / 2, 0)
+            pts = [rot3((x, y, 0), c, 0, 0, p["rotz"])[:2] for x in (p["x0"], p["x1"]) for y in (p["y0"], p["y1"])]
+            gap = min(r - math.hypot(max(abs(x) - a / 2, 0), y) for x, y in pts)
+        elif p["kind"] == "cyl":
+            gap = r - (math.hypot(max(abs(p["cx"]) - a / 2, 0), p["cy"]) + p["r"])
+        elif p["kind"] == "stad":
+            gap = r - p["r"]
+        else:
+            continue
+        worst = min(worst, (round(gap, 2), p["name"]))
+    return worst
+
+
 def build_retro():
     """Retro cooler box: teal and cream, chrome corner beads and belt, front display, chrome handle bar. Water column in front,
     electronics column behind (125 x 75 x 191 mm). Push fan only."""
@@ -441,6 +590,31 @@ def mesh_of(p):
             for (x, y) in ((p["x0"], p["y0"]), (p["x1"], p["y0"]), (p["x1"], p["y1"]), (p["x0"], p["y1"])):
                 v.append(rot3((x, y, z), c, p.get("rotx", 0), p.get("roty", 0), p["rotz"]))
         t += [(0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7), (0, 1, 5), (0, 5, 4), (1, 2, 6), (1, 6, 5), (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7)]
+    elif p["kind"] == "stad":
+        outer = stad_outline(p["cx"], p["cy"], p["a"], p["r"])
+        inner = stad_outline(p["cx"], p["cy"], p["a"], p["r"] - p["t"]) if p.get("t") else None
+        n = len(outer)
+        for z in (p["z0"], p["z1"]):
+            v += [(x, y, z) for x, y in outer]
+        for i in range(n):
+            j = (i + 1) % n
+            t += [(i, j, n + j), (i, n + j, n + i)]                       # outer wall
+        if not inner:
+            cxy = (p["cx"], p["cy"])
+            v += [(cxy[0], cxy[1], p["z0"]), (cxy[0], cxy[1], p["z1"])]
+            b, tp = 2 * n, 2 * n + 1
+            for i in range(n):
+                j = (i + 1) % n
+                t += [(b, j, i), (tp, n + i, n + j)]
+        else:
+            base = len(v)
+            for z in (p["z0"], p["z1"]):
+                v += [(x, y, z) for x, y in inner]
+            for i in range(n):
+                j = (i + 1) % n
+                t += [(base + i, base + n + j, base + j), (base + i, base + n + i, base + n + j)]
+                t += [(i, base + i, base + j), (i, base + j, j)]
+                t += [(n + i, n + j, base + n + j), (n + i, base + n + j, base + n + i)]
     elif p["kind"] == "lathe":
         pts = [(max(r, 0.01), z) for r, z in p["pts"]]
         n, m = SEG * 2, len(pts)
@@ -540,6 +714,12 @@ def write_step(path):
                     s = s.rotate(c, (c[0] + axis[0], c[1] + axis[1], c[2] + axis[2]), ang)
         elif p["kind"] == "cyl":
             s = cq.Workplane("XY").workplane(offset=p["z0"]).center(p["cx"], p["cy"]).circle(p["r"]).extrude(p["z1"] - p["z0"])
+        elif p["kind"] == "stad":
+            h = p["z1"] - p["z0"]
+            s = cq.Workplane("XY").workplane(offset=p["z0"]).center(p["cx"], p["cy"]).slot2D(p["a"] + 2 * p["r"], 2 * p["r"]).extrude(h)
+            if p.get("t"):
+                ri = p["r"] - p["t"]
+                s = s.cut(cq.Workplane("XY").workplane(offset=p["z0"] - 1).center(p["cx"], p["cy"]).slot2D(p["a"] + 2 * ri, 2 * ri).extrude(h + 2))
         elif p["kind"] == "lathe":
             s = cq.Workplane("XZ").polyline([tuple(q) for q in p["pts"]]).close().revolve(360, (0, 0, 0), (0, 1, 0))
         else:
@@ -550,7 +730,14 @@ def write_step(path):
 
 
 def write_blender(path):
-    data = json.dumps(P, separators=(",", ":"))
+    parts = []
+    for p in P:
+        q = dict(p)
+        if p["kind"] == "stad":
+            v, t = mesh_of(p)
+            q["mesh"] = [[list(x) for x in v], [list(f) for f in t]]
+        parts.append(q)
+    data = json.dumps(parts, separators=(",", ":"))
     code = '''# ThermoX layout draft. In Blender: Scripting tab > Open this file > Run Script. Units are millimetres.
 # Written to be simple, but not tested inside Blender here. If it errors, File > Import > Wavefront (.obj) with
 # thermox_assembly.obj gives the same parts.
@@ -602,6 +789,13 @@ for p in PARTS:
         o.scale = (p["x1"] - p["x0"], p["y1"] - p["y0"], p["z1"] - p["z0"])
         o.location = ((p["x0"] + p["x1"]) / 2, (p["y0"] + p["y1"]) / 2, (p["z0"] + p["z1"]) / 2)
         o.rotation_euler = (math.radians(p.get("rotx", 0)), math.radians(p.get("roty", 0)), math.radians(p["rotz"]))
+    elif p["kind"] == "stad":
+        me = bpy.data.meshes.new(p["name"])
+        me.from_pydata(p["mesh"][0], [], p["mesh"][1])
+        me.update()
+        o = bpy.data.objects.new(p["name"], me)
+        bpy.context.collection.objects.link(o)
+        bpy.context.view_layer.objects.active = o
     elif p["kind"] == "lathe":
         bm = bmesh.new()
         vs = [bm.verts.new((max(r, 0.01), 0, z)) for r, z in p["pts"]]
@@ -646,7 +840,7 @@ print("ThermoX layout draft built:", len(PARTS), "parts")
 
 
 def write_viewer_data(path, designs):
-    keep = ("name", "kind", "grp", "color", "alpha", "rotz", "rotx", "roty", "edges", "skin", "metal", "flow", "label", "ex", "pts", "x0", "x1", "y0", "y1", "z0", "z1", "cx", "cy", "r", "r_in", "r_out")
+    keep = ("name", "kind", "grp", "color", "alpha", "rotz", "rotx", "roty", "edges", "skin", "metal", "flow", "label", "ex", "pts", "x0", "x1", "y0", "y1", "z0", "z1", "cx", "cy", "r", "r_in", "r_out", "a", "t")
     out = {}
     for d in designs:
         out[d["name"]] = dict(title=d["title"], kind=d["kind"], dims=d["dims"], flow=d.get("flow", []),
@@ -672,6 +866,9 @@ def dims_of(d):
         out["body_h"] = TOP
     else:
         out["x"] = round(max(xs) - min(xs), 1); out["y"] = round(max(ys) - min(ys), 1)
+        out["cx"] = round((max(xs) + min(xs)) / 2, 1)
+        if d.get("body_h"):
+            out["body_h"] = d["body_h"]
     return out
 
 
@@ -729,7 +926,7 @@ def clearance_report(profiles):
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     export_flow = "pull" if "--pull" in FLAGS else "push"
-    designs = [build_classic(), build_modern(), build_trail(), build_pebble(), build_deco(), build_retro()]
+    designs = [build_classic(), build_modern(), build_trail(), build_pebble(), build_deco(), build_retro(), build_duo()]
     for d in designs:
         d["dims"] = dims_of(d)
     for d in designs:
@@ -751,6 +948,9 @@ if __name__ == "__main__":
         extra = ""
         if d["kind"] == "round":
             gap, who = clearance_report(d["profiles"])
+            extra = " | tightest clearance inside the wall: %.1f mm (%s)" % (gap, who)
+        elif d["kind"] == "duo":
+            gap, who = duo_clearance(d)
             extra = " | tightest clearance inside the wall: %.1f mm (%s)" % (gap, who)
         print("%-8s parts: %3d | box overlaps: %s | %s | %s%s" % (d["name"], len(P), overlaps(), step, d["dims"], extra))
     write_viewer_data(os.path.join(OUT, "viewer_parts.json"), designs)
