@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f1e">
+<title>ThermoX Remote</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0f1e; --bg2: #111a33; --card: rgba(255,255,255,.06); --card-line: rgba(255,255,255,.11);
+  --text: #eaf0ff; --muted: #94a3c4; --dim: #5d6b8a;
+  --hot: #ff7a45; --hot2: #ff3d6e; --cold: #38c8ff; --cold2: #5b7cff;
+  --ok: #3ddc97; --warn: #ffc247; --bad: #ff5468; --accent: #8b7bff;
+  --radius: 18px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; color: var(--text); background: var(--bg);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  padding: max(12px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+}
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(900px 500px at 110% -10%, rgba(255,90,80,.20), transparent 60%),
+    radial-gradient(900px 600px at -20% 10%, rgba(56,200,255,.18), transparent 60%),
+    linear-gradient(180deg, var(--bg2), var(--bg) 70%); }
+.num { font-variant-numeric: tabular-nums; }
+header { display: flex; align-items: center; gap: 10px; max-width: 980px; margin: 0 auto 14px; }
+.brand { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.logo { font-size: 24px; font-weight: 800; letter-spacing: .3px; margin: 0; line-height: 1.1;
+  background: linear-gradient(90deg, var(--cold), var(--accent) 50%, var(--hot)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.logo small { font-size: 12px; font-weight: 700; letter-spacing: 1.2px; margin-left: 6px; color: var(--muted); -webkit-text-fill-color: var(--muted); text-transform: uppercase; }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 99px; font-size: 12.5px; font-weight: 600;
+  background: var(--card); border: 1px solid var(--card-line); color: var(--muted); white-space: nowrap; }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+.pill.on { color: var(--ok); } .pill.on .dot { background: var(--ok); box-shadow: 0 0 0 0 rgba(61,220,151,.6); animation: ping 1.8s infinite; }
+.pill.busy { color: var(--warn); } .pill.busy .dot { background: var(--warn); animation: blink 1s infinite; }
+.pill.demo { color: var(--accent); } .pill.demo .dot { background: var(--accent); }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(61,220,151,.55); } 80%,100% { box-shadow: 0 0 0 9px rgba(61,220,151,0); } }
+@keyframes blink { 50% { opacity: .25; } }
+
+main { max-width: 980px; margin: 0 auto; display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 820px) { main { grid-template-columns: 1fr 1fr; } .wide { grid-column: 1 / -1; } }
+.card { background: var(--card); border: 1px solid var(--card-line); border-radius: var(--radius); padding: 16px;
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 10px 30px rgba(0,0,0,.25); min-width: 0; }
+.card h2 { margin: 0 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.card h2 .right { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 600; white-space: nowrap; }
+@media (max-width: 380px) { .logo small { display: none; } .card h2 { letter-spacing: .6px; font-size: 12px; } .card { padding: 14px; } }
+
+button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+.btn { min-height: 48px; padding: 0 18px; border-radius: 14px; font-weight: 700; font-size: 15px;
+  background: linear-gradient(135deg, var(--accent), #5b7cff); color: #fff; box-shadow: 0 6px 18px rgba(91,124,255,.35); transition: transform .1s; }
+.btn:active:not(:disabled) { transform: scale(.97); }
+.btn.ghost { background: rgba(255,255,255,.08); box-shadow: none; border: 1px solid var(--card-line); }
+.btn.go { background: linear-gradient(135deg, #2bd88f, #18a8c9); box-shadow: 0 6px 18px rgba(43,216,143,.3); }
+.btn.stop { background: linear-gradient(135deg, var(--hot2), #c2255c); box-shadow: 0 6px 18px rgba(255,61,110,.3); }
+.btn.small { min-height: 40px; padding: 0 14px; font-size: 14px; }
+
+.banner { max-width: 980px; margin: 0 auto 14px; padding: 12px 14px; border-radius: 14px; font-size: 14px;
+  background: rgba(255,194,71,.12); border: 1px solid rgba(255,194,71,.35); color: #ffe2a6; }
+.banner b { color: #fff; }
+
+/* hero */
+.hero { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
+@media (max-width: 420px) { .hero { grid-template-columns: 1fr; justify-items: center; text-align: center; } }
+.gauge { position: relative; width: 210px; height: 210px; }
+.gauge svg { width: 100%; height: 100%; transform: rotate(135deg); overflow: visible; }
+.gauge .track { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 14; stroke-linecap: round; }
+.gauge .arc { fill: none; stroke: url(#gIdle); stroke-width: 14; stroke-linecap: round; transition: stroke-dashoffset .8s ease; }
+.gauge.heat .arc { stroke: url(#gHot); } .gauge.cool .arc { stroke: url(#gCold); } .gauge.fault .arc { stroke: var(--bad); }
+.gauge.heat svg, .gauge.cool svg { animation: glow 2.2s ease-in-out infinite; }
+.gauge.heat { --glow: rgba(255,122,69,.55); } .gauge.cool { --glow: rgba(56,200,255,.55); }
+@keyframes glow { 50% { filter: drop-shadow(0 0 10px var(--glow)); } }
+.gauge .tmark { fill: #fff; stroke: var(--bg); stroke-width: 3; transition: cx .6s, cy .6s; }
+.gauge .center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.temp { font-size: 50px; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+.temp sup { font-size: 18px; font-weight: 700; color: var(--muted); margin-left: 2px; vertical-align: 24px; }
+.center .lbl { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.state { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; font-weight: 800; font-size: 18px; letter-spacing: .5px;
+  background: rgba(255,255,255,.07); border: 1px solid var(--card-line); }
+.state.heat { color: var(--hot); background: rgba(255,122,69,.12); border-color: rgba(255,122,69,.35); }
+.state.cool { color: var(--cold); background: rgba(56,200,255,.12); border-color: rgba(56,200,255,.35); }
+.state.ok { color: var(--ok); background: rgba(61,220,151,.12); border-color: rgba(61,220,151,.35); }
+.state.warn { color: var(--warn); background: rgba(255,194,71,.12); border-color: rgba(255,194,71,.35); }
+.state.bad { color: var(--bad); background: rgba(255,84,104,.14); border-color: rgba(255,84,104,.4); }
+.state-hint { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; min-height: 1.4em; }
+
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+@media (min-width: 560px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 820px) { .herocard { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; align-items: center; }
+  .herocard .tiles { margin-top: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { padding: 12px; border-radius: 14px; background: rgba(255,255,255,.045); border: 1px solid var(--card-line); min-width: 0; }
+.tile .k { font-size: 11.5px; color: var(--muted); font-weight: 600; letter-spacing: .6px; text-transform: uppercase; }
+.tile .v { font-size: 24px; font-weight: 800; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .s { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar { height: 5px; border-radius: 5px; background: rgba(255,255,255,.08); margin-top: 8px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; border-radius: 5px; background: linear-gradient(90deg, var(--cold), var(--accent)); transition: width .6s; }
+.bar.hot i { background: linear-gradient(90deg, var(--hot), var(--hot2)); }
+.spin { display: inline-block; }
+.spin.go { animation: rot var(--spd, 1s) linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* target control */
+.stepper { display: grid; grid-template-columns: 64px 1fr 64px; align-items: center; gap: 10px; }
+.stepper button { height: 64px; border-radius: 18px; font-size: 30px; font-weight: 700; background: rgba(255,255,255,.08); border: 1px solid var(--card-line); }
+.stepper button:active:not(:disabled) { background: rgba(255,255,255,.16); }
+.setv { text-align: center; }
+.setv .big { font-size: 46px; font-weight: 800; line-height: 1.05; }
+.setv .big small { font-size: 20px; color: var(--muted); }
+.setv .sub { font-size: 12.5px; color: var(--muted); }
+.range-ticks { display: flex; justify-content: space-between; color: var(--dim); font-size: 11px; margin: 6px 4px 0; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.note { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+
+/* fan */
+.seg { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 14px; background: rgba(0,0,0,.25); border: 1px solid var(--card-line); }
+.seg button { min-height: 44px; border-radius: 11px; font-weight: 800; letter-spacing: .5px; color: var(--muted); background: transparent; }
+.seg button.sel { color: #fff; background: linear-gradient(135deg, var(--accent), #5b7cff); box-shadow: 0 4px 14px rgba(91,124,255,.35); }
+.fanrow { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
+.fanicon { width: 54px; height: 54px; flex: none; color: var(--cold); }
+.fanval { font-size: 34px; font-weight: 800; line-height: 1; }
+.fanval small { font-size: 16px; color: var(--muted); }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 34px; background: transparent; margin: 14px 0 0; }
+input[type=range]::-webkit-slider-runnable-track { height: 10px; border-radius: 10px; background: linear-gradient(90deg, var(--cold) 0%, var(--accent) var(--p, 50%), rgba(255,255,255,.1) var(--p, 50%)); }
+input[type=range]::-moz-range-track { height: 10px; border-radius: 10px; background: linear-gradient(90deg, var(--cold) 0%, var(--accent) var(--p, 50%), rgba(255,255,255,.1) var(--p, 50%)); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -9px; border-radius: 50%; background: #fff; border: 4px solid var(--accent); box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 4px solid var(--accent); }
+input[type=range]:disabled { opacity: .35; }
+
+/* chart */
+.chartbox { position: relative; height: 210px; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 16px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+
+/* activity */
+.log { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; }
+.log li { display: grid; grid-template-columns: 10px max-content 1fr; gap: 10px; align-items: baseline; padding: 8px 2px; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 14px; }
+.log li:last-child { border-bottom: 0; }
+.log .d { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); align-self: center; }
+.log .t { color: var(--dim); font-size: 12.5px; white-space: nowrap; }
+.log .src { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .5px; margin-right: 6px; }
+.log li.heat .d { background: var(--hot); } .log li.cool .d { background: var(--cold); } .log li.ok .d { background: var(--ok); }
+.log li.bad .d { background: var(--bad); } .log li.warn .d { background: var(--warn); } .log li.app .d { background: var(--accent); }
+.empty { color: var(--dim); font-size: 14px; padding: 10px 2px; }
+
+/* toast */
+#toasts { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: grid; gap: 8px; z-index: 9; width: min(92vw, 420px); pointer-events: none; }
+.toast { padding: 12px 16px; border-radius: 14px; font-weight: 600; font-size: 14px; background: rgba(20,28,52,.94); border: 1px solid var(--card-line);
+  box-shadow: 0 10px 30px rgba(0,0,0,.45); animation: tin .25s ease; }
+.toast.err { border-color: rgba(255,84,104,.6); } .toast.ok { border-color: rgba(61,220,151,.5); }
+@keyframes tin { from { opacity: 0; transform: translateY(10px); } }
+footer { max-width: 980px; margin: 16px auto 0; color: var(--dim); font-size: 12px; text-align: center; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1 class="logo">ThermoX<small>Remote</small></h1>
+    <span id="pill" class="pill"><span class="dot"></span><span id="pillTxt">Not connected</span></span>
+  </div>
+  <span class="spacer"></span>
+  <button id="connectBtn" class="btn small">Connect</button>
+</header>
+
+<div id="banner" class="banner hidden"></div>
+
+<main>
+  <section class="card wide herocard">
+    <div class="hero">
+      <div id="gauge" class="gauge">
+        <svg viewBox="0 0 220 220" aria-hidden="true">
+          <defs>
+            <linearGradient id="gHot" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb347"/><stop offset="1" stop-color="#ff3d6e"/></linearGradient>
+            <linearGradient id="gCold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b7cff"/><stop offset="1" stop-color="#38c8ff"/></linearGradient>
+            <linearGradient id="gIdle" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38c8ff"/><stop offset="1" stop-color="#8b7bff"/></linearGradient>
+          </defs>
+          <circle class="track" cx="110" cy="110" r="92" pathLength="100" stroke-dasharray="75 100"/>
+          <circle id="arc" class="arc" cx="110" cy="110" r="92" pathLength="100" stroke-dasharray="75 100" stroke-dashoffset="75"/>
+          <circle id="tmark" class="tmark" cx="202" cy="110" r="7"/>
+        </svg>
+        <div class="center">
+          <div class="temp num"><span id="temp">--.-</span><sup>&deg;C</sup></div>
+          <div class="lbl">Water temperature</div>
+        </div>
+      </div>
+      <div>
+        <div id="state" class="state">OFFLINE</div>
+        <p id="stateHint" class="state-hint">Press Connect and choose ThermoX.</p>
+      </div>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="k">Target</div><div class="v num" id="tTarget">--</div><div class="s" id="tTargetS">set on the device</div></div>
+      <div class="tile"><div class="k">Peltier</div><div class="v num" id="tPel">--</div><div class="s" id="tPelS">off</div><div class="bar hot"><i id="bPel"></i></div></div>
+      <div class="tile"><div class="k">Fan</div><div class="v num" id="tFan">--</div><div class="s" id="tFanS">--</div><div class="bar"><i id="bFan"></i></div></div>
+      <div class="tile"><div class="k">Battery</div><div class="v num" id="tBat">--</div><div class="s" id="tBatS">not measured</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Temperature control <span class="right num" id="nowTarget"></span></h2>
+    <div class="stepper">
+      <button id="minus" aria-label="Lower target" disabled>&minus;</button>
+      <div class="setv">
+        <div class="big num"><span id="setVal">25</span><small> &deg;C</small></div>
+        <div class="sub" id="setSub">new target</div>
+      </div>
+      <button id="plus" aria-label="Raise target" disabled>+</button>
+    </div>
+    <div class="range-ticks"><span id="tminL">20 &deg;C</span><span id="tmaxL">50 &deg;C</span></div>
+    <div class="row2">
+      <button id="startBtn" class="btn go" disabled>&#9654; Start</button>
+      <button id="stopBtn" class="btn stop" disabled>&#9632; Stop</button>
+    </div>
+    <p class="note">Start works like a button press: one run (heat or cool, full power) to the target, then the Peltier and fan stop. Hot&nbsp;&harr;&nbsp;cold switching waits 60&nbsp;s.</p>
+  </section>
+
+  <section class="card">
+    <h2>Fan control <span class="right num" id="fanRpmH"></span></h2>
+    <div class="seg" role="group" aria-label="Fan mode">
+      <button id="fanAuto" class="sel" disabled>AUTO</button>
+      <button id="fanMan" disabled>MANUAL</button>
+    </div>
+    <div class="fanrow">
+      <svg id="fanIcon" class="fanicon spin" viewBox="0 0 64 64" aria-hidden="true"><g fill="currentColor">
+        <circle cx="32" cy="32" r="5"/>
+        <path d="M32 27c-2-9 2-18 9-19 6-1 9 5 6 10-3 4-9 6-15 9z"/>
+        <path d="M37 32c9-2 18 2 19 9 1 6-5 9-10 6-4-3-6-9-9-15z"/>
+        <path d="M32 37c2 9-2 18-9 19-6 1-9-5-6-10 3-4 9-6 15-9z"/>
+        <path d="M27 32c-9 2-18-2-19-9-1-6 5-9 10-6 4 3 6 9 9 15z"/></g></svg>
+      <div>
+        <div class="fanval num"><span id="fanNow">--</span><small> %</small></div>
+        <div class="note" style="margin:2px 0 0" id="fanNowS">fan speed now</div>
+      </div>
+    </div>
+    <input id="fanSlider" type="range" min="0" max="100" step="5" value="50" aria-label="Manual fan speed" disabled>
+    <div class="range-ticks"><span>0 %</span><span id="fanSetL">Manual: 50 %</span><span>100 %</span></div>
+    <p class="note" id="fanNote">AUTO: 100 % when cooling, 50 % when heating, off when idle.</p>
+  </section>
+
+  <section class="card wide">
+    <h2>Temperature history <span class="right" id="chartSpan"></span></h2>
+    <div class="chartbox"><canvas id="chart"></canvas></div>
+    <div class="legend"><span><i style="background:linear-gradient(90deg,#38c8ff,#ff7a45)"></i>Water</span><span><i style="background:#fff;opacity:.7"></i>Target</span></div>
+  </section>
+
+  <section class="card wide">
+    <h2>Activity <span class="right" id="logCount"></span></h2>
+    <ul id="log" class="log"></ul>
+    <div id="logEmpty" class="empty">No activity yet.</div>
+  </section>
+</main>
+<footer>ThermoX phone remote &middot; Bluetooth Low Energy &middot; open with <b>?demo</b> to try it without the device</footer>
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+'use strict';
+// ---- Protocol (must match ThermoX.ino) ----
+const SVC = '7a3c0000-63b5-4559-b515-2c37cc077186';
+const CH_STATUS = '7a3c0001-63b5-4559-b515-2c37cc077186';   // read: JSON status
+const CH_CMD    = '7a3c0002-63b5-4559-b515-2c37cc077186';   // write: T<n>, S, X, FA, FM<n>
+const CH_NOTIFY = '7a3c0003-63b5-4559-b515-2c37cc077186';   // notify: u16 counter, u16 event count
+const CH_LOG    = '7a3c0004-63b5-4559-b515-2c37cc077186';   // read: JSON event log
+const enc = new TextEncoder(), dec = new TextDecoder();
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + ' timed out')), ms))]);
+
+// ---- Bluetooth link (Web Bluetooth) ----
+class BleLink {
+  constructor(onPing, onDrop) { this.onPing = onPing; this.onDrop = onDrop; this.dev = null; this.ch = {}; this.q = Promise.resolve(); this.userClose = false; this.live = false; }
+  // GATT allows one operation at a time: queue them.
+  op(fn, what) { const p = this.q.then(() => withTimeout(fn(), 8000, what)); this.q = p.catch(() => {}); return p; }
+  async connect() {
+    this.dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }, { name: 'ThermoX' }], optionalServices: [SVC] });
+    this.dev.addEventListener('gattserverdisconnected', () => this.dropped());
+    await this.open();
+    return this.dev.name || 'ThermoX';
+  }
+  dropped() {                      // runs once per lost connection
+    if (!this.live) return;
+    this.live = false; this.ch = {};
+    const byUser = this.userClose; this.userClose = false;
+    this.onDrop(byUser);
+  }
+  async open() {
+    try {
+      const server = await withTimeout(this.dev.gatt.connect(), 15000, 'Connect');
+      const svc = await server.getPrimaryService(SVC);
+      const ch = {};
+      for (const [k, u] of [['status', CH_STATUS], ['cmd', CH_CMD], ['notify', CH_NOTIFY], ['log', CH_LOG]]) ch[k] = await svc.getCharacteristic(u);
+      ch.notify.addEventListener('characteristicvaluechanged', e => {
+        const v = e.target.value;
+        if (v && v.byteLength >= 4) this.onPing(v.getUint16(2, true));
+      });
+      await ch.notify.startNotifications();
+      this.q = Promise.resolve();
+      this.ch = ch; this.live = true;
+    } catch (e) {
+      try { this.dev.gatt.disconnect(); } catch (_) { /* already closed */ }
+      throw e;
+    }
+  }
+  get connected() { return this.live && this.dev.gatt.connected; }
+  async reconnect() { if (!this.dev) throw new Error('No device'); await this.open(); }
+  disconnect() {
+    this.userClose = true;
+    if (this.live) { this.dev.gatt.disconnect(); setTimeout(() => this.dropped(), 700); }   // in case no event arrives
+    else { this.userClose = false; this.onDrop(true); }
+  }
+  async readJson(key) {
+    const v = await this.op(() => this.ch[key].readValue(), 'Read');
+    return JSON.parse(dec.decode(v));
+  }
+  status() { return this.readJson('status'); }
+  log() { return this.readJson('log'); }
+  send(cmd) {
+    const c = this.ch.cmd, data = enc.encode(cmd);
+    return this.op(() => c.writeValueWithResponse ? c.writeValueWithResponse(data) : c.writeValue(data), 'Send');
+  }
+}
+
+// ---- Demo device: same commands and JSON as the firmware, with a simple heat model ----
+class DemoLink {
+  constructor(onPing, onDrop) {
+    this.onPing = onPing; this.onDrop = onDrop; this.connectedFlag = false;
+    const d = this.d = { water: 27.6, target: 25, mode: 'IDLE', runDir: 'IDLE', fault: '', reached: false, newRun: false, wait: 0,
+      lastDriven: 'IDLE', lastActive: -1e9, fanCtl: 'auto', fanPct: 50, floor: 0, fanDuty: 0, pel: 0, rpm: 0, t0: Date.now() - 95000, ev: [], evTotal: 0 };
+    this.ev('Power on');
+  }
+  up() { return Date.now() - this.d.t0; }
+  ev(t) { const d = this.d; d.ev.push([this.up(), t]); if (d.ev.length > 10) d.ev.shift(); d.evTotal++; }
+  async connect() { await sleep(600); this.connectedFlag = true; this.ev('Phone connected');
+    this.timer = setInterval(() => this.tick(0.25), 250); this.pinger = setInterval(() => this.onPing(this.d.evTotal), 1000); return 'ThermoX (demo)'; }
+  get connected() { return this.connectedFlag; }
+  disconnect() { clearInterval(this.timer); clearInterval(this.pinger); this.connectedFlag = false; this.onDrop(true); }
+  async status() { await sleep(40); const d = this.d;
+    return { t: +d.water.toFixed(2), tg: d.target, tmin: 20, tmax: 50, m: d.mode, f: d.fault, r: d.reached ? 1 : 0, w: d.wait, pel: d.pel,
+      fan: d.fanDuty, rpm: d.rpm, fc: d.fanCtl, fp: d.fanPct, fmin: d.floor, bat: -1, bv: null, up: this.up(), ev: d.evTotal }; }
+  async log() { await sleep(40); return { up: this.up(), e: this.d.ev.slice() }; }
+  async send(c) { await sleep(60); const d = this.d; let m;
+    if ((m = /^T(\d+)$/.exec(c)) && +m[1] >= 20 && +m[1] <= 50) { d.target = +m[1]; d.newRun = true; }
+    else if (c === 'S') { d.newRun = true; this.ev('Phone: start'); }
+    else if (c === 'X') { d.runDir = 'IDLE'; d.newRun = false; d.reached = false; this.ev('Phone: stop'); }
+    else if (c === 'FA') { d.fanCtl = 'auto'; this.ev('Phone: fan AUTO'); }
+    else if ((m = /^FM(\d+)$/.exec(c)) && +m[1] <= 100) { d.fanCtl = 'manual'; d.fanPct = +m[1]; this.ev('Phone: fan ' + m[1] + '%'); }
+    else this.ev('Phone: bad command');
+    this.tick(0); setTimeout(() => this.onPing(d.evTotal), 50); }
+  tick(dt) {
+    const d = this.d, now = Date.now(), before = d.mode, wasReached = d.reached, wasWaiting = d.wait > 0;
+    if (d.mode !== 'FAULT') {
+      if (d.newRun) { d.newRun = false; d.reached = false;
+        d.runDir = d.water < d.target - 0.5 ? 'HEATING' : d.water > d.target + 0.5 ? 'COOLING' : 'IDLE';
+        if (d.runDir === 'IDLE') d.reached = true;
+      } else if ((d.runDir === 'HEATING' && d.water >= d.target) || (d.runDir === 'COOLING' && d.water <= d.target)) { d.runDir = 'IDLE'; d.reached = true; }
+      let want = d.runDir; d.wait = 0;
+      if (want !== 'IDLE' && d.lastDriven !== 'IDLE' && want !== d.lastDriven && now - d.lastActive < 60000) {
+        d.wait = Math.ceil((60000 - (now - d.lastActive)) / 1000); want = 'IDLE'; }
+      d.mode = want;
+      d.floor = want === 'COOLING' ? 70 : want === 'HEATING' ? 40 : 0;
+      const auto = want === 'COOLING' ? 100 : want === 'HEATING' ? 50 : 0;
+      d.fanDuty = d.fanCtl === 'auto' ? auto : Math.max(d.fanPct, d.floor);
+      d.pel = want === 'IDLE' ? 0 : 100;
+      if (want !== 'IDLE') { d.lastActive = now; d.lastDriven = want; }
+    }
+    const rate = d.mode === 'HEATING' ? 0.09 : d.mode === 'COOLING' ? -0.06 * (0.6 + d.fanDuty / 250) : (28 - d.water) * 0.004;
+    d.water += rate * dt * 4 + (Math.random() - 0.5) * 0.01;
+    d.rpm = d.fanDuty ? Math.round(d.fanDuty * 62 + Math.random() * 60) : 0;
+    if (d.mode !== before && (d.mode === 'HEATING' || d.mode === 'COOLING')) this.ev((d.mode === 'HEATING' ? 'Heating' : 'Cooling') + ' to ' + d.target + ' C');
+    if (d.wait > 0 && !wasWaiting) this.ev('Wait ' + d.wait + 's before reversing');
+    if (d.reached && !wasReached) this.ev('Reached ' + d.water.toFixed(1) + ' C');
+  }
+}
+
+// ---- App ----
+const demo = new URLSearchParams(location.search).has('demo');
+let link = null, st = null, lastEv = -1, statusBusy = false, logBusy = false, lastStatusAt = 0, devName = 'ThermoX';
+let pending = null, pendingEdited = false, sliderBusy = false, reconnecting = false, wantOnline = false;
+const samples = [];               // {t, temp, target} for the graph
+const events = new Map();         // key -> {time, text, src, cls}
+
+function toast(msg, kind) {
+  const box = $('toasts'), el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' ' + kind : ''); el.textContent = msg;
+  box.append(el); setTimeout(() => el.remove(), 2800);
+  while (box.children.length > 2) box.firstChild.remove();
+}
+function setPill(text, cls) { $('pill').className = 'pill' + (cls ? ' ' + cls : ''); $('pillTxt').textContent = text; }
+function setControls(on) {
+  ['minus', 'plus', 'startBtn', 'stopBtn', 'fanAuto', 'fanMan'].forEach(id => $(id).disabled = !on);
+  $('fanSlider').disabled = !on || !st || st.fc !== 'manual';
+}
+function addEvent(time, text, src, key) {
+  key = key || ('app|' + time + '|' + text);
+  if (events.has(key)) return;
+  const t = text.toLowerCase();
+  const cls = src === 'APP' ? 'app' : t.startsWith('fault') ? 'bad' : t.startsWith('heating') ? 'heat' : t.startsWith('cooling') ? 'cool'
+    : t.startsWith('reached') ? 'ok' : t.startsWith('wait') || t.includes('bad command') ? 'warn' : '';
+  events.set(key, { time, text, src, cls });
+  if (events.size > 80) events.delete(events.keys().next().value);
+  renderLog();
+}
+function renderLog() {
+  const list = [...events.values()].sort((a, b) => b.time - a.time);
+  const ul = $('log'); ul.replaceChildren();
+  for (const e of list) {
+    const li = document.createElement('li'); li.className = e.cls;
+    const dot = document.createElement('span'); dot.className = 'd';
+    const tm = document.createElement('span'); tm.className = 't num'; tm.textContent = new Date(e.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const tx = document.createElement('span');
+    const src = document.createElement('span'); src.className = 'src'; src.textContent = e.src;
+    tx.append(src, document.createTextNode(e.text));
+    li.append(dot, tm, tx); ul.append(li);
+  }
+  $('logEmpty').classList.toggle('hidden', list.length > 0);
+  $('logCount').textContent = list.length ? list.length + ' events' : '';
+}
+
+function render(s) {
+  st = s; lastStatusAt = Date.now();
+  const temp = typeof s.t === 'number' ? s.t : null;
+  $('temp').textContent = temp === null ? '--.-' : temp.toFixed(1);
+  const lo = 0, hi = 60, frac = v => Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+  $('arc').style.strokeDashoffset = 75 - 75 * (temp === null ? 0 : frac(temp));
+  const a = 270 * frac(s.tg) * Math.PI / 180;   // the svg is rotated so angle 0 is the start of the arc
+  $('tmark').setAttribute('cx', 110 + 92 * Math.cos(a));
+  $('tmark').setAttribute('cy', 110 + 92 * Math.sin(a));
+
+  let label, cls, hint, g = '';
+  if (s.m === 'FAULT') { label = 'FAULT' + (s.f ? ': ' + s.f : ''); cls = 'bad'; g = 'fault'; hint = 'Peltier off, fan full. Fix the cause, then turn ThermoX off and on to clear.'; }
+  else if (s.w > 0) { label = 'WAIT ' + s.w + ' s'; cls = 'warn'; hint = 'Resting before switching hot ↔ cold.'; }
+  else if (s.m === 'HEATING') { label = 'HEATING'; cls = 'heat'; g = 'heat'; hint = 'Heating to ' + s.tg + ' °C at full power.'; }
+  else if (s.m === 'COOLING') { label = 'COOLING'; cls = 'cool'; g = 'cool'; hint = 'Cooling to ' + s.tg + ' °C at full power.'; }
+  else if (s.r) { label = 'REACHED'; cls = 'ok'; hint = 'Target reached. Press Start for another run.'; }
+  else { label = 'READY'; cls = ''; hint = temp === null ? 'Waiting for the temperature sensor…' : 'Idle. Set a target and press Start.'; }
+  $('state').textContent = label; $('state').className = 'state ' + cls; $('stateHint').textContent = hint;
+  $('gauge').className = 'gauge ' + g;
+
+  $('tTarget').textContent = s.tg + ' °C'; $('nowTarget').textContent = 'device: ' + s.tg + ' °C';
+  $('tPel').textContent = s.pel + '%'; $('tPelS').textContent = s.pel ? (s.m === 'HEATING' ? 'heating' : 'cooling') : 'off'; $('bPel').style.width = s.pel + '%';
+  $('tFan').textContent = s.fan + '%'; $('tFanS').textContent = (s.fc === 'manual' ? 'MANUAL' : 'AUTO') + ' · ' + s.rpm + ' rpm'; $('bFan').style.width = s.fan + '%';
+  if (s.bat >= 0) { $('tBat').textContent = s.bat + '%'; $('tBatS').textContent = s.bv === null ? '' : s.bv.toFixed(2) + ' V'; }
+  else { $('tBat').textContent = '—'; $('tBatS').textContent = 'not measured'; }
+  $('tminL').textContent = s.tmin + ' °C'; $('tmaxL').textContent = s.tmax + ' °C';
+
+  if (pending === null || !pendingEdited) pending = s.tg;
+  showPending();
+
+  // fan card
+  $('fanAuto').classList.toggle('sel', s.fc === 'auto'); $('fanMan').classList.toggle('sel', s.fc === 'manual');
+  if (!sliderBusy) { $('fanSlider').value = s.fp; paintSlider(); }
+  $('fanSlider').disabled = !link || !link.connected || s.fc !== 'manual';
+  $('fanNow').textContent = s.fan; $('fanNowS').textContent = s.rpm + ' rpm' + (s.m === 'FAULT' ? ' (fault: full speed)' : '');
+  $('fanRpmH').textContent = s.rpm ? s.rpm + ' rpm' : '';
+  const icon = $('fanIcon'); icon.classList.toggle('go', s.fan > 0); icon.style.setProperty('--spd', (1.6 - s.fan / 80).toFixed(2) + 's');
+  let note;
+  if (s.fc === 'auto') note = 'AUTO: 100 % when cooling, 50 % when heating, off when idle.';
+  else if ((s.m === 'HEATING' || s.m === 'COOLING') && s.fp < s.fmin) note = 'Running at the safety minimum of ' + s.fmin + ' % while the Peltier is ' + s.m.toLowerCase() + '.';
+  else note = 'MANUAL: the fan runs at this speed, also when idle. While the Peltier runs it never goes below 70 % (cooling) or 40 % (heating).';
+  $('fanNote').textContent = note;
+
+  samples.push({ t: Date.now(), temp, target: s.tg });
+  while (samples.length && Date.now() - samples[0].t > 15 * 60000) samples.shift();
+  drawChart();
+}
+function showPending() {
+  $('setVal').textContent = pending;
+  $('setSub').textContent = st && pending !== st.tg ? 'new target (press Start)' : 'target';
+  $('minus').disabled = !link || !link.connected || !st || pending <= st.tmin;
+  $('plus').disabled = !link || !link.connected || !st || pending >= st.tmax;
+}
+function paintSlider() {
+  const v = +$('fanSlider').value;
+  $('fanSlider').style.setProperty('--p', v + '%'); $('fanSetL').textContent = 'Manual: ' + v + ' %';
+}
+
+function drawChart() {
+  const c = $('chart'), box = c.parentElement, dpr = window.devicePixelRatio || 1;
+  const W = box.clientWidth, H = box.clientHeight;
+  if (!W) return;
+  c.width = W * dpr; c.height = H * dpr;
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const pts = samples.filter(p => p.temp !== null);
+  g.font = '12px system-ui, sans-serif'; g.fillStyle = '#5d6b8a';
+  if (pts.length < 2) { g.fillText(link && link.connected ? 'Collecting data…' : 'Connect to see the temperature graph.', 12, 24); $('chartSpan').textContent = ''; return; }
+  const L = 34, R = 8, T = 10, B = 22, w = W - L - R, h = H - T - B;
+  const t1 = pts[pts.length - 1].t, t0 = Math.min(pts[0].t, t1 - 30000);
+  const vals = pts.flatMap(p => [p.temp, p.target]);
+  const lo = Math.floor(Math.min(...vals)) - 1, step = Math.max(1, Math.ceil((Math.ceil(Math.max(...vals)) + 1 - lo) / 4)), hi = lo + 4 * step;
+  const X = t => L + (t - t0) / (t1 - t0) * w, Y = v => T + h - (v - lo) / (hi - lo) * h;
+  g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1; g.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) { const v = lo + step * i, y = Y(v); g.beginPath(); g.moveTo(L, y); g.lineTo(L + w, y); g.stroke(); g.fillText(v + '°', L - 6, y + 4); }
+  g.textAlign = 'center';
+  const span = (t1 - t0) / 1000;
+  for (let i = 0; i <= 3; i++) {
+    const ago = span * (3 - i) / 3;
+    const txt = i === 3 ? 'now' : span < 120 ? '-' + Math.round(ago) + ' s' : '-' + (+(ago / 60).toFixed(ago < 600 ? 1 : 0)) + ' min';
+    g.fillText(txt, Math.min(Math.max(X(t0 + (t1 - t0) * i / 3), L + 18), L + w - 18), H - 5);
+  }
+  $('chartSpan').textContent = 'last ' + (span < 120 ? Math.round(span) + ' s' : Math.round(span / 60) + ' min');
+  // target (dashed)
+  g.setLineDash([5, 5]); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5; g.beginPath();
+  pts.forEach((p, i) => { const x = X(p.t), y = Y(p.target); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); g.setLineDash([]);
+  // water (gradient line + fill)
+  const grad = g.createLinearGradient(0, T, 0, T + h); grad.addColorStop(0, '#ff7a45'); grad.addColorStop(1, '#38c8ff');
+  g.beginPath(); pts.forEach((p, i) => { const x = X(p.t), y = Y(p.temp); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+  g.strokeStyle = grad; g.lineWidth = 2.5; g.lineJoin = 'round'; g.stroke();
+  g.lineTo(X(pts[pts.length - 1].t), T + h); g.lineTo(X(pts[0].t), T + h); g.closePath();
+  const fill = g.createLinearGradient(0, T, 0, T + h); fill.addColorStop(0, 'rgba(139,123,255,.25)'); fill.addColorStop(1, 'rgba(56,200,255,0)');
+  g.fillStyle = fill; g.fill();
+  const lp = pts[pts.length - 1]; g.fillStyle = '#fff'; g.beginPath(); g.arc(X(lp.t), Y(lp.temp), 3.5, 0, 7); g.fill();
+}
+
+async function refreshStatus() {
+  if (!link || !link.connected || statusBusy) return;
+  statusBusy = true;
+  try { render(await link.status()); }
+  catch (e) { if (link && link.connected) console.warn('status', e); }
+  finally { statusBusy = false; }
+}
+async function refreshLog() {
+  if (!link || !link.connected || logBusy) return;
+  logBusy = true;
+  try {
+    const j = await link.log(), now = Date.now();
+    for (const [ms, text] of j.e) addEvent(now - (j.up - ms), text, 'DEVICE', 'dev|' + ms + '|' + text);
+  } catch (e) { if (link && link.connected) console.warn('log', e); }
+  finally { logBusy = false; }
+}
+function onPing(evCount) {
+  refreshStatus();
+  if (evCount !== lastEv) { lastEv = evCount; refreshLog(); }
+}
+function offline() { setControls(false); setPill(demo ? 'Demo · not connected' : 'Not connected', demo ? 'demo' : ''); $('connectBtn').textContent = 'Connect'; }
+async function onDrop(byUser) {
+  setControls(false);
+  if (byUser || demo || !wantOnline) { wantOnline = false; offline(); addEvent(Date.now(), 'Disconnected', 'APP'); return; }
+  if (reconnecting) return;
+  reconnecting = true; setPill('Reconnecting…', 'busy'); addEvent(Date.now(), 'Connection lost, reconnecting', 'APP');
+  for (const wait of [1000, 2000, 4000, 8000, 8000]) {
+    await sleep(wait);
+    if (!wantOnline) break;
+    try {
+      await link.reconnect();
+      if (!wantOnline) { link.disconnect(); break; }      // Disconnect was pressed meanwhile
+      reconnecting = false; connected(); toast('Reconnected', 'ok'); return;
+    } catch (e) { /* try again */ }
+  }
+  reconnecting = false;
+  if (wantOnline) { wantOnline = false; offline(); toast('ThermoX is out of reach. Press Connect.', 'err'); addEvent(Date.now(), 'Could not reconnect', 'APP'); }
+}
+function connected() {
+  setPill(demo ? 'Demo' : 'Connected', demo ? 'demo' : 'on'); $('connectBtn').textContent = 'Disconnect';
+  setControls(true); lastEv = -1; addEvent(Date.now(), 'Connected to ' + devName, 'APP');
+  refreshStatus().then(refreshLog);
+}
+async function connect() {
+  if (wantOnline) { wantOnline = false; link.disconnect(); return; }        // the button reads "Disconnect"
+  if (!demo && !bleReady()) return;
+  link = demo ? new DemoLink(onPing, onDrop) : new BleLink(onPing, onDrop);
+  wantOnline = true;
+  setPill('Connecting…', 'busy'); $('connectBtn').disabled = true;
+  try { devName = await link.connect(); connected(); toast('Connected to ' + devName, 'ok'); }
+  catch (e) {
+    wantOnline = false; offline();
+    if (e && e.name === 'NotFoundError') toast('No device chosen.');
+    else toast('Could not connect: ' + (e && e.message ? e.message : e), 'err');
+  } finally { $('connectBtn').disabled = false; }
+}
+async function send(cmd, okMsg) {
+  if (!link || !link.connected) { toast('Not connected', 'err'); return false; }
+  try { await link.send(cmd); if (okMsg) { toast(okMsg, 'ok'); addEvent(Date.now(), okMsg, 'APP'); } setTimeout(refreshStatus, 150); return true; }
+  catch (e) { toast('Not sent: ' + (e && e.message ? e.message : e), 'err'); return false; }
+}
+function bleReady() {
+  if (!window.isSecureContext) { showBanner('Bluetooth needs a secure page. Open this page with an <b>https://</b> link.'); return false; }
+  if (!navigator.bluetooth) { showBanner('This browser has no Bluetooth access. <b>Android:</b> open the page in <b>Chrome</b>. <b>iPhone:</b> use the free <b>Bluefy</b> browser app. To look around first, add <b>?demo</b> to the address.'); return false; }
+  return true;
+}
+function showBanner(html) { const b = $('banner'); b.innerHTML = html; b.classList.remove('hidden'); }
+
+$('connectBtn').addEventListener('click', connect);
+$('minus').addEventListener('click', () => { if (!st) return; pending = Math.max(st.tmin, pending - 1); pendingEdited = true; showPending(); });
+$('plus').addEventListener('click', () => { if (!st) return; pending = Math.min(st.tmax, pending + 1); pendingEdited = true; showPending(); });
+$('startBtn').addEventListener('click', async () => {
+  if (await send('T' + pending, 'Start: run to ' + pending + ' °C')) { pendingEdited = false; }
+});
+$('stopBtn').addEventListener('click', () => send('X', 'Stop: Peltier off'));
+$('fanAuto').addEventListener('click', () => send('FA', 'Fan: AUTO'));
+$('fanMan').addEventListener('click', () => send('FM' + $('fanSlider').value, 'Fan: MANUAL ' + $('fanSlider').value + ' %'));
+$('fanSlider').addEventListener('input', () => { sliderBusy = true; paintSlider(); });
+$('fanSlider').addEventListener('change', async () => {
+  const v = $('fanSlider').value;
+  await send('FM' + v, 'Fan: MANUAL ' + v + ' %'); sliderBusy = false;
+});
+// If notifications stop arriving, read the status anyway.
+setInterval(() => { if (link && link.connected && Date.now() - lastStatusAt > 2500) refreshStatus(); }, 1000);
+window.addEventListener('resize', drawChart);
+paintSlider(); renderLog(); drawChart();
+if (demo) { offline(); showBanner('<b>Demo mode:</b> a simulated ThermoX, no Bluetooth needed. Press Connect.'); }
+else if (!window.isSecureContext || !navigator.bluetooth) bleReady();
+</script>
+</body>
+</html>

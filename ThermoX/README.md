@@ -27,6 +27,49 @@ Libraries: OneWire, DallasTemperature, U8g2.
 8. **PID control** in place of the proportional taper once real heating/cooling curves
    are measured.
 
+## Phone control (Bluetooth Low Energy)
+
+`dashboard/phone.html` is a phone page that connects straight to the ThermoX over Bluetooth Low Energy
+(Web Bluetooth). It needs no extra hardware, wiring or library (BLE is part of the ESP32 core), and the
+Classic Bluetooth logging below keeps working at the same time.
+
+What it does:
+- Live status: water temperature, state (READY / HEATING / COOLING / REACHED / WAIT / FAULT), target,
+  Peltier %, fan % and RPM, battery (once battery sensing is enabled), a temperature graph and an activity log.
+- **Temperature control**: choose the target with − / + and press **Start**. This works exactly like a press of
+  the device buttons: one run at full power to the target, then the Peltier and fan stop. **Stop** ends the run.
+  The 60 s hot/cold reversal rest and all fault cutoffs still apply.
+- **Fan control**: **AUTO** is the normal behaviour (100 % cooling, 50 % heating, off when idle). **MANUAL** runs the
+  fan at the slider speed, also when idle, but while the Peltier runs it never goes below
+  `FAN_MIN_PCT_COOL` (70 %) when cooling or `FAN_MIN_PCT_HEAT` (40 %) when heating. The fan goes back to AUTO
+  at every power-up. If a FAN STALL fault appears in MANUAL, raise those minimums.
+- A fault (sensor, over/under temperature, fan stall) cannot be cleared from the phone: fix the cause and turn the
+  ThermoX off and on.
+
+How to open it:
+1. Upload `phone.html` together with the rest of `dashboard/` to the HTTPS host (step 3 below), then open
+   `https://your-site/phone.html`. (Any HTTPS host works, e.g. GitHub Pages. Web Bluetooth does not work on
+   `http://` pages or on a file opened from the phone's storage.)
+2. **Android**: use **Chrome**, turn on Bluetooth, and allow *Nearby devices* (and *Location* on older Android).
+   **iPhone**: Safari has no Web Bluetooth; use the free **Bluefy** browser app.
+3. Press **Connect** and choose **ThermoX**. No pairing is needed. If the link drops, the page reconnects by itself.
+4. To try the page without the device, open `phone.html?demo` (simulated ThermoX).
+
+The page and the firmware talk through one BLE service (`7a3c0000-63b5-4559-b515-2c37cc077186`):
+status JSON (read), event log JSON (read), a "refresh" notification about once a second, and a command
+characteristic. Commands can also be sent by hand with an app such as nRF Connect (write as UTF-8 text):
+
+| Command | Meaning |
+|---|---|
+| `T30` | Set the target to 30 °C (20–50) and start a run (same as a button press) |
+| `S` | Start a run toward the current target |
+| `X` | Stop the run (Peltier off) |
+| `FA` | Fan AUTO |
+| `FM60` | Fan MANUAL 60 % (0–100) |
+
+Notes: one phone at a time; range is about 10 m. There is no PIN, so anyone in range with the page could connect;
+the safety cutoffs still apply. Set `ENABLE_BLE_CONTROL = false` to switch phone control off.
+
 ## Bluetooth logging to MySQL (experiments)
 
 ```
@@ -121,7 +164,8 @@ Some free hosts show a bot-check page to command-line tools like curl; the dashb
 - Needs a computer with Chrome or Edge (Web Serial). Phones cannot forward Classic Bluetooth data this way.
 - Classic Bluetooth needs the original ESP32 (not S2/S3/C3) and adds some power draw; set `ENABLE_BT_LOGGING = false` to disable.
 - Logging stops if the browser tab is closed or the Bluetooth link drops (press Connect again).
-- Data flows one way: the dashboard cannot change the device target or mode.
+- Data flows one way: this PC dashboard cannot change the device. Use the phone page (`phone.html`, above) to set
+  the target, start/stop a run and control the fan.
 - Battery voltage is not measured yet (future addition on GPIO35), so no battery value is logged or shown.
 - Timestamps come from the server when each line arrives, not from the ESP32.
 - Free hosts can be slow, limit traffic, or change their terms; export your CSVs after each test.
