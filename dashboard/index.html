@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ThermoX Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>ThermoX</h1>
+    <span class="sub">Experiment logger</span>
+    <span id="conn" class="badge off">No data</span>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Connection</h2>
+      <div class="row">
+        <label>Access key <input id="apiKey" type="password" autocomplete="off" placeholder="from config.php"></label>
+        <button type="button" id="btConnect">Connect ThermoX (Bluetooth)</button>
+        <button type="button" id="btDisconnect" class="secondary" hidden>Disconnect</button>
+      </div>
+      <p id="btMsg" class="msg">Pair the ESP32 named &ldquo;ThermoX&rdquo; with this computer first, then press Connect and choose its Bluetooth COM port. Needs Chrome or Edge.</p>
+    </section>
+
+    <section class="card">
+      <h2>Experiment</h2>
+      <form id="startForm" class="row">
+        <label>Name <input id="expName" required maxlength="100" placeholder="Cooling trial 1"></label>
+        <label>Mode
+          <select id="expMode"><option>COOLING</option><option>HEATING</option></select>
+        </label>
+        <label>Target (&deg;C) <input id="expTarget" type="number" min="20" max="50" step="0.5" value="22" required></label>
+        <button type="submit">Start experiment</button>
+        <button type="button" id="stopBtn" class="secondary">Stop</button>
+      </form>
+      <p id="formMsg" class="msg"></p>
+      <p class="hint">Samples are saved only while an experiment is running. The target and mode here describe the experiment. The device target is still set with its buttons, and each sample stores the target the device reports.</p>
+    </section>
+
+    <section class="card">
+      <h2 id="expTitle">No experiment yet</h2>
+      <div class="stats">
+        <div><span class="label">Temperature</span><span class="value" id="vTemp">--</span></div>
+        <div><span class="label">Target</span><span class="value" id="vTarget">--</span></div>
+        <div><span class="label">Mode</span><span class="value" id="vMode">--</span></div>
+        <div><span class="label">Peltier</span><span class="value" id="vPeltier">--</span></div>
+        <div><span class="label">Fan</span><span class="value" id="vFan">--</span></div>
+        <div><span class="label">Battery</span><span class="value" id="vBatt">--</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Temperature vs time</h2>
+      <canvas id="chart" height="300"></canvas>
+      <div class="legend"><span class="key temp"></span>Temperature <span class="key target"></span>Target</div>
+    </section>
+
+    <section class="card">
+      <h2>History <small>(latest 50 samples)</small></h2>
+      <div class="scroll">
+        <table id="history">
+          <thead><tr><th>Time</th><th>Temp (&deg;C)</th><th>Target (&deg;C)</th><th>Peltier</th><th>Fan</th><th>Battery (V)</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Previous experiments</h2>
+      <div class="scroll">
+        <table id="experiments">
+          <thead><tr><th>#</th><th>Name</th><th>Mode</th><th>Target</th><th>Started</th><th>Ended</th><th>Samples</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
