@@ -90,7 +90,9 @@ const char* FAULT_TXT[] = {"", "SENSOR", "OVER TEMP", "TOO COLD", "FAN STALL"};
 
 OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature ds(&oneWire);
-U8G2_SH1107_128X128_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
+// GME128128-01 (1.5" SH1107 128x128) needs x offset 0: the PIMORONI variant. The plain
+// U8G2_SH1107_128X128 driver adds a 96-pixel offset, which shifts and wraps the picture.
+U8G2_SH1107_PIMORONI_128X128_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
 
 float waterC = NAN, targetC = TARGET_DEFAULT;
 Mode mode = IDLE; Fault fault = F_NONE;
