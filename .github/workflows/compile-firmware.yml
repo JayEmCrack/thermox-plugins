@@ -1,0 +1,28 @@
+# Compiles the ThermoX ESP32 firmware on every push and pull request,
+# so a sketch that does not build is caught before it reaches the device.
+name: Compile ThermoX firmware
+
+on:
+  push:
+    paths: ["ThermoX/**", ".github/workflows/compile-firmware.yml"]
+  pull_request:
+    paths: ["ThermoX/**", ".github/workflows/compile-firmware.yml"]
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 core and libraries
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          # Core 3.x: 4.0 drops BluetoothSerial, which the logging uses.
+          arduino-cli core install esp32:esp32@3.3.12 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install "U8g2" "OneWire" "DallasTemperature"
+
+      - name: Compile (ESP32 Dev Module)
+        run: arduino-cli compile --fqbn esp32:esp32:esp32 --warnings default ThermoX

@@ -217,7 +217,11 @@ footer { max-width: 980px; margin: 16px auto 0; color: var(--dim); font-size: 12
       <button id="startBtn" class="btn go" disabled>&#9654; Start</button>
       <button id="stopBtn" class="btn stop" disabled>&#9632; Stop</button>
     </div>
-    <p class="note">Start works like a button press: one run (heat or cool, full power) to the target, then the Peltier and fan stop. Hot&nbsp;&harr;&nbsp;cold switching waits 60&nbsp;s.</p>
+    <p class="note">Start works like a button press: one run (heat or cool) to the target, then the Peltier and fan stop. Hot&nbsp;&harr;&nbsp;cold switching waits 60&nbsp;s.</p>
+    <h2 style="margin-top:16px">Peltier power <span class="right num" id="pwL">--</span></h2>
+    <input id="pwSlider" type="range" min="30" max="100" step="5" value="100" aria-label="Peltier power limit" disabled>
+    <div class="range-ticks"><span>30 % (battery saver)</span><span>100 % (fastest)</span></div>
+    <p class="note">Lower power = slower heating/cooling but the battery lasts longer. Saved on the device.</p>
   </section>
 
   <section class="card">
@@ -330,7 +334,7 @@ class DemoLink {
   constructor(onPing, onDrop) {
     this.onPing = onPing; this.onDrop = onDrop; this.connectedFlag = false;
     const d = this.d = { water: 27.6, target: 25, mode: 'IDLE', runDir: 'IDLE', fault: '', reached: false, newRun: false, wait: 0,
-      lastDriven: 'IDLE', lastActive: -1e9, fanCtl: 'auto', fanPct: 50, floor: 0, fanDuty: 0, pel: 0, rpm: 0, t0: Date.now() - 95000, ev: [], evTotal: 0 };
+      lastDriven: 'IDLE', lastActive: -1e9, fanCtl: 'auto', fanPct: 50, power: 100, floor: 0, fanDuty: 0, pel: 0, rpm: 0, t0: Date.now() - 95000, ev: [], evTotal: 0 };
     this.ev('Power on');
   }
   up() { return Date.now() - this.d.t0; }
@@ -341,7 +345,7 @@ class DemoLink {
   disconnect() { clearInterval(this.timer); clearInterval(this.pinger); this.connectedFlag = false; this.onDrop(true); }
   async status() { await sleep(40); const d = this.d;
     return { t: +d.water.toFixed(2), tg: d.target, tmin: 20, tmax: 50, m: d.mode, f: d.fault, r: d.reached ? 1 : 0, w: d.wait, pel: d.pel,
-      fan: d.fanDuty, rpm: d.rpm, fc: d.fanCtl, fp: d.fanPct, fmin: d.floor, bat: -1, bv: null, up: this.up(), ev: d.evTotal }; }
+      fan: d.fanDuty, rpm: d.rpm, fc: d.fanCtl, fp: d.fanPct, fmin: d.floor, bat: -1, bv: null, lb: 0, pw: d.power, up: this.up(), ev: d.evTotal }; }
   async log() { await sleep(40); return { up: this.up(), e: this.d.ev.slice() }; }
   async send(c) { await sleep(60); const d = this.d; let m;
     if ((m = /^T(\d+)$/.exec(c)) && +m[1] >= 20 && +m[1] <= 50) { d.target = +m[1]; d.newRun = true; }
@@ -349,6 +353,7 @@ class DemoLink {
     else if (c === 'X') { d.runDir = 'IDLE'; d.newRun = false; d.reached = false; this.ev('Phone: stop'); }
     else if (c === 'FA') { d.fanCtl = 'auto'; this.ev('Phone: fan AUTO'); }
     else if ((m = /^FM(\d+)$/.exec(c)) && +m[1] <= 100) { d.fanCtl = 'manual'; d.fanPct = +m[1]; this.ev('Phone: fan ' + m[1] + '%'); }
+    else if ((m = /^P(\d+)$/.exec(c)) && +m[1] >= 30 && +m[1] <= 100) { d.power = +m[1]; this.ev('Phone: power ' + m[1] + '%'); }
     else this.ev('Phone: bad command');
     this.tick(0); setTimeout(() => this.onPing(d.evTotal), 50); }
   tick(dt) {
@@ -365,10 +370,11 @@ class DemoLink {
       d.floor = want === 'COOLING' ? 70 : want === 'HEATING' ? 40 : 0;
       const auto = want === 'COOLING' ? 100 : want === 'HEATING' ? 50 : 0;
       d.fanDuty = d.fanCtl === 'auto' ? auto : Math.max(d.fanPct, d.floor);
-      d.pel = want === 'IDLE' ? 0 : 100;
+      d.pel = want === 'IDLE' ? 0 : d.power;
       if (want !== 'IDLE') { d.lastActive = now; d.lastDriven = want; }
     }
-    const rate = d.mode === 'HEATING' ? 0.09 : d.mode === 'COOLING' ? -0.06 * (0.6 + d.fanDuty / 250) : (28 - d.water) * 0.004;
+    const pf = d.power / 100;
+    const rate = d.mode === 'HEATING' ? 0.09 * pf : d.mode === 'COOLING' ? -0.06 * pf * (0.6 + d.fanDuty / 250) : (28 - d.water) * 0.004;
     d.water += rate * dt * 4 + (Math.random() - 0.5) * 0.01;
     d.rpm = d.fanDuty ? Math.round(d.fanDuty * 62 + Math.random() * 60) : 0;
     if (d.mode !== before && (d.mode === 'HEATING' || d.mode === 'COOLING')) this.ev((d.mode === 'HEATING' ? 'Heating' : 'Cooling') + ' to ' + d.target + ' C');
@@ -392,7 +398,7 @@ function toast(msg, kind) {
 }
 function setPill(text, cls) { $('pill').className = 'pill' + (cls ? ' ' + cls : ''); $('pillTxt').textContent = text; }
 function setControls(on) {
-  ['minus', 'plus', 'startBtn', 'stopBtn', 'fanAuto', 'fanMan'].forEach(id => $(id).disabled = !on);
+  ['minus', 'plus', 'startBtn', 'stopBtn', 'fanAuto', 'fanMan', 'pwSlider'].forEach(id => $(id).disabled = !on);
   $('fanSlider').disabled = !on || !st || st.fc !== 'manual';
 }
 function addEvent(time, text, src, key) {
@@ -432,10 +438,11 @@ function render(s) {
   $('tmark').setAttribute('cy', 110 + 92 * Math.sin(a));
 
   let label, cls, hint, g = '';
-  if (s.m === 'FAULT') { label = 'FAULT' + (s.f ? ': ' + s.f : ''); cls = 'bad'; g = 'fault'; hint = 'Peltier off, fan full. Fix the cause, then turn ThermoX off and on to clear.'; }
+  if (s.lb && s.m !== 'FAULT') { label = 'LOW BATTERY'; cls = 'bad'; hint = 'Peltier stopped to protect the battery. Charge it; Start works again when the battery recovers.'; }
+  else if (s.m === 'FAULT') { label = 'FAULT' + (s.f ? ': ' + s.f : ''); cls = 'bad'; g = 'fault'; hint = 'Peltier off, fan full. Fix the cause, then turn ThermoX off and on to clear.'; }
   else if (s.w > 0) { label = 'WAIT ' + s.w + ' s'; cls = 'warn'; hint = 'Resting before switching hot ↔ cold.'; }
-  else if (s.m === 'HEATING') { label = 'HEATING'; cls = 'heat'; g = 'heat'; hint = 'Heating to ' + s.tg + ' °C at full power.'; }
-  else if (s.m === 'COOLING') { label = 'COOLING'; cls = 'cool'; g = 'cool'; hint = 'Cooling to ' + s.tg + ' °C at full power.'; }
+  else if (s.m === 'HEATING') { label = 'HEATING'; cls = 'heat'; g = 'heat'; hint = 'Heating to ' + s.tg + ' °C at ' + (s.pw || 100) + ' % power.'; }
+  else if (s.m === 'COOLING') { label = 'COOLING'; cls = 'cool'; g = 'cool'; hint = 'Cooling to ' + s.tg + ' °C at ' + (s.pw || 100) + ' % power.'; }
   else if (s.r) { label = 'REACHED'; cls = 'ok'; hint = 'Target reached. Press Start for another run.'; }
   else { label = 'READY'; cls = ''; hint = temp === null ? 'Waiting for the temperature sensor…' : 'Idle. Set a target and press Start.'; }
   $('state').textContent = label; $('state').className = 'state ' + cls; $('stateHint').textContent = hint;
@@ -455,6 +462,10 @@ function render(s) {
   $('fanAuto').classList.toggle('sel', s.fc === 'auto'); $('fanMan').classList.toggle('sel', s.fc === 'manual');
   if (!sliderBusy) { $('fanSlider').value = s.fp; paintSlider(); }
   $('fanSlider').disabled = !link || !link.connected || s.fc !== 'manual';
+  if (typeof s.pw === 'number') {
+    if (!pwBusy) { $('pwSlider').value = s.pw; paintPw(); }
+    $('pwSlider').disabled = !link || !link.connected;
+  }
   $('fanNow').textContent = s.fan; $('fanNowS').textContent = s.rpm + ' rpm' + (s.m === 'FAULT' ? ' (fault: full speed)' : '');
   $('fanRpmH').textContent = s.rpm ? s.rpm + ' rpm' : '';
   const icon = $('fanIcon'); icon.classList.toggle('go', s.fan > 0); icon.style.setProperty('--spd', (1.6 - s.fan / 80).toFixed(2) + 's');
@@ -474,6 +485,8 @@ function showPending() {
   $('minus').disabled = !link || !link.connected || !st || pending <= st.tmin;
   $('plus').disabled = !link || !link.connected || !st || pending >= st.tmax;
 }
+let pwBusy = false;
+function paintPw() { const v = +$('pwSlider').value; $('pwSlider').style.setProperty('--p', (v - 30) / 70 * 100 + '%'); $('pwL').textContent = v + ' %'; }
 function paintSlider() {
   const v = +$('fanSlider').value;
   $('fanSlider').style.setProperty('--p', v + '%'); $('fanSetL').textContent = 'Manual: ' + v + ' %';
@@ -594,6 +607,11 @@ $('stopBtn').addEventListener('click', () => send('X', 'Stop: Peltier off'));
 $('fanAuto').addEventListener('click', () => send('FA', 'Fan: AUTO'));
 $('fanMan').addEventListener('click', () => send('FM' + $('fanSlider').value, 'Fan: MANUAL ' + $('fanSlider').value + ' %'));
 $('fanSlider').addEventListener('input', () => { sliderBusy = true; paintSlider(); });
+$('pwSlider').addEventListener('input', () => { pwBusy = true; paintPw(); });
+$('pwSlider').addEventListener('change', async () => {
+  const v = $('pwSlider').value;
+  await send('P' + v, 'Peltier power: ' + v + ' %'); pwBusy = false;
+});
 $('fanSlider').addEventListener('change', async () => {
   const v = $('fanSlider').value;
   await send('FM' + v, 'Fan: MANUAL ' + v + ' %'); sliderBusy = false;
@@ -601,7 +619,7 @@ $('fanSlider').addEventListener('change', async () => {
 // If notifications stop arriving, read the status anyway.
 setInterval(() => { if (link && link.connected && Date.now() - lastStatusAt > 2500) refreshStatus(); }, 1000);
 window.addEventListener('resize', drawChart);
-paintSlider(); renderLog(); drawChart();
+paintSlider(); paintPw(); renderLog(); drawChart();
 if (demo) { offline(); showBanner('<b>Demo mode:</b> a simulated ThermoX, no Bluetooth needed. Press Connect.'); }
 else if (!window.isSecureContext || !navigator.bluetooth) bleReady();
 </script>

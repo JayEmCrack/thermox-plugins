@@ -13,7 +13,10 @@
    - Fan: full duty in COOL, ~50 % in HEAT, off when idle (only the OLED stays on)
    - SH1107 128x128 OLED shows water temp, target, mode, fan RPM, battery
    - Phone control over Bluetooth Low Energy (page: dashboard/phone.html): live status, set the target,
-     start/stop a run, fan AUTO or MANUAL % (see README.md)
+     start/stop a run, fan AUTO or MANUAL %, Peltier power limit (see README.md)
+   - The last target and the power limit are saved and come back after power-up (no run starts by itself)
+   - Low-battery cutoff (needs ENABLE_BATTERY_SENSE): stops the Peltier and blocks new runs until the
+     battery recovers
 */
 #include <Arduino.h>
 #include <Wire.h>
@@ -24,6 +27,7 @@
 #include <BLEDevice.h>         // ESP32 Bluetooth Low Energy (phone control)
 #include <BLEServer.h>
 #include <BLE2902.h>
+#include <Preferences.h>       // saved settings (flash)
 
 // ---------------- Pins (as wired) ----------------
 constexpr uint8_t PIN_BTN_DOWN = 32;   // Button 1
@@ -45,13 +49,18 @@ constexpr uint8_t PIN_BATT_ADC = 35;
 constexpr float   BATT_DIVIDER = 2.0f;      // e.g. 100k/100k
 constexpr float   BATT_EMPTY_V = 3.3f;      // per cell, 1S Li-ion
 constexpr float   BATT_FULL_V  = 4.15f;
+constexpr uint8_t BATT_CELLS = 1;           // Li-ion cells in series (3S pack = 3); keep GPIO35 below ~3.1 V
+constexpr float   LOW_BATT_CUTOFF_V = 3.30f;  // per cell: Peltier stops below this...
+constexpr uint32_t LOW_BATT_DELAY_MS = 5000;  // ...for this long (ignores short dips under load)
+constexpr float   LOW_BATT_RESUME_V = 3.60f;  // per cell: new runs allowed again above this
 
 // ---------------- Tunables ----------------
 constexpr float TARGET_MIN = 20.0f, TARGET_MAX = 50.0f, TARGET_DEFAULT = 25.0f;
 constexpr float START_BAND_C = 0.5f;         // C, a press within this band of the target counts as already reached
 constexpr float OVERTEMP_CUTOFF = 55.0f;     // C, hard stop
 constexpr float UNDERTEMP_CUTOFF = 5.0f;     // C, hard stop (freezing)
-constexpr uint8_t TEC_MAX_DUTY = 255;        // every run is at this duty; lower to limit current/battery draw
+constexpr uint8_t TEC_MAX_DUTY = 255;        // full power; each run uses TEC_MAX_DUTY x tecPowerPct
+constexpr uint8_t POWER_MIN_PCT = 30;        // lowest Peltier power the phone can set, %
 constexpr bool    HEAT_ON_RPWM = true;       // swap if your wiring heats on LPWM instead
 constexpr uint32_t REVERSE_COOLDOWN_MS = 60000; // Peltier must rest this long (off) before the direction reverses
 constexpr uint32_t FAN_RUNON_MS = 0;         // fan run-on after TEC stops; 0 = fan off immediately
@@ -111,6 +120,10 @@ enum FanCtl : uint8_t { FAN_AUTO, FAN_MANUAL };
 FanCtl fanCtl = FAN_AUTO;                    // set from the phone; back to AUTO after every power-up
 uint8_t fanManualPct = 50;                   // MANUAL fan speed from the phone, %
 uint8_t fanFloorPct = 0;                     // safety minimum for the MANUAL fan right now, %
+uint8_t tecPowerPct = 100;                   // Peltier power limit from the phone, % (saved)
+bool lowBatt = false;                        // low-battery cutoff active
+uint32_t lowBattSince = 0;
+Preferences prefs;
 
 // Declared before the first function so the prototype Arduino generates for btnStep() compiles.
 struct Btn { uint8_t pin; bool last; uint32_t since, rep; };
@@ -172,8 +185,9 @@ void readBattery() {
   static uint32_t t0 = 0; uint32_t now = millis();
   if (now - t0 < 2000) return; t0 = now;
   float v = analogReadMilliVolts(PIN_BATT_ADC) / 1000.0f * BATT_DIVIDER;
-  battV = v;
-  battPct = constrain((int)((v - BATT_EMPTY_V) * 100 / (BATT_FULL_V - BATT_EMPTY_V)), 0, 100);
+  battV = isnan(battV) ? v : battV * 0.7f + v * 0.3f;   // smoothed pack voltage
+  float cell = battV / BATT_CELLS;
+  battPct = constrain((int)((cell - BATT_EMPTY_V) * 100 / (BATT_FULL_V - BATT_EMPTY_V)), 0, 100);
 }
 
 Btn bDown{PIN_BTN_DOWN, HIGH, 0, 0}, bUp{PIN_BTN_UP, HIGH, 0, 0};
@@ -203,6 +217,19 @@ void control() {
   if (waterC >= OVERTEMP_CUTOFF)  { enterFault(F_OVERTEMP);  return; }
   if (waterC <= UNDERTEMP_CUTOFF) { enterFault(F_UNDERTEMP); return; }
 
+  // Low battery: stop the run and refuse new ones until the battery recovers (not latched).
+  if (ENABLE_BATTERY_SENSE && !isnan(battV)) {
+    float cell = battV / BATT_CELLS;
+    if (cell < LOW_BATT_CUTOFF_V) {
+      if (lowBattSince == 0) lowBattSince = now;
+      if (now - lowBattSince > LOW_BATT_DELAY_MS) lowBatt = true;
+    } else {
+      lowBattSince = 0;
+      if (cell > LOW_BATT_RESUME_V) lowBatt = false;
+    }
+  }
+  if (lowBatt) { runDir = IDLE; newRun = false; reached = false; }
+
   // One run per button press. The direction is chosen when the press is handled; the run then
   // goes at full power until the water crosses the target. After that nothing restarts by itself,
   // however far the temperature drifts, until the next press.
@@ -230,7 +257,7 @@ void control() {
     tecStop();
     setFan(fanDutyFor(IDLE, (now - lastTecActive < FAN_RUNON_MS) ? 128 : 0));
   } else {
-    tecDrive(mode, TEC_MAX_DUTY);
+    tecDrive(mode, (uint8_t)((TEC_MAX_DUTY * tecPowerPct + 50) / 100));
     setFan(fanDutyFor(mode, mode == COOL ? 255 : 128));   // AUTO: full in cooling, ~50 % in heating
     lastTecActive = now; lastDriven = mode;
   }
@@ -266,6 +293,7 @@ void drawUI() {
   oled.setFont(u8g2_font_9x15_tr);
   snprintf(b, sizeof b, "Set: %.0f C", targetC); oled.drawStr(8, 84, b);
   if (mode == FAULT) oled.drawStr(8, 102, FAULT_TXT[fault]);
+  else if (lowBatt) oled.drawStr(8, 102, "LOW BATT");
   else if (waitLeftS) { snprintf(b, sizeof b, "WAIT %us", waitLeftS); oled.drawStr(8, 102, b); }
   else if (mode == IDLE) oled.drawStr(8, 102, reached ? "REACHED" : "READY");
   else oled.drawStr(8, 102, MODE_TXT[mode]);
@@ -324,10 +352,10 @@ void statusJson(char* b, size_t n) {
   if (!isnan(battV)) snprintf(bv, sizeof bv, "%.2f", battV);
   snprintf(b, n,
     "{\"t\":%s,\"tg\":%.0f,\"tmin\":%.0f,\"tmax\":%.0f,\"m\":\"%s\",\"f\":\"%s\",\"r\":%d,\"w\":%u,"
-    "\"pel\":%u,\"fan\":%u,\"rpm\":%u,\"fc\":\"%s\",\"fp\":%u,\"fmin\":%u,\"bat\":%d,\"bv\":%s,\"up\":%lu,\"ev\":%u}",
+    "\"pel\":%u,\"fan\":%u,\"rpm\":%u,\"fc\":\"%s\",\"fp\":%u,\"fmin\":%u,\"bat\":%d,\"bv\":%s,\"lb\":%d,\"pw\":%u,\"up\":%lu,\"ev\":%u}",
     t, targetC, TARGET_MIN, TARGET_MAX, MODE_TXT[mode], FAULT_TXT[fault], reached ? 1 : 0, (unsigned)waitLeftS,
     tecDuty * 100U / 255, fanDuty * 100U / 255, (unsigned)fanRpm, fanCtl == FAN_AUTO ? "auto" : "manual",
-    (unsigned)fanManualPct, (unsigned)fanFloorPct, battPct, bv, (unsigned long)millis(), (unsigned)evTotal);
+    (unsigned)fanManualPct, (unsigned)fanFloorPct, battPct, bv, lowBatt ? 1 : 0, (unsigned)tecPowerPct, (unsigned long)millis(), (unsigned)evTotal);
 }
 
 // Event log JSON, oldest first: {"up":<millis now>,"e":[[<millis>,"text"],...]} (under 512 bytes).
@@ -400,6 +428,7 @@ void bleBegin() {
 //   X          stop the run (Peltier off)
 //   FA         fan AUTO (the normal behaviour)
 //   FM<0-100>  fan MANUAL at this %, never below FAN_MIN_PCT_* while the Peltier runs
+//   P<30-100>  Peltier power limit, % (saved)
 // Fault cutoffs, the 60 s reversal rest and the fault latch work exactly as with the buttons.
 void handlePhone() {
   if (!phoneCmds) return;
@@ -422,6 +451,9 @@ void handlePhone() {
     } else if (c0 == 'F' && c1 == 'M' && (v = strtol(s + 2, &end, 10), end != s + 2 && *end == '\0') &&
                v >= 0 && v <= 100) {
       fanCtl = FAN_MANUAL; fanManualPct = v; logEvent("Phone: fan %ld%%", v);
+    } else if (c0 == 'P' && (v = strtol(s + 1, &end, 10), end != s + 1 && *end == '\0') &&
+               v >= POWER_MIN_PCT && v <= 100) {
+      tecPowerPct = v; prefs.putUChar("power", tecPowerPct); logEvent("Phone: power %ld%%", v);
     } else {
       logEvent("Phone: bad command");
     }
@@ -447,9 +479,20 @@ void trackEvents() {
   lastWait = waiting;
   if (reached && !lastReached) logEvent("Reached %.1f C", waterC);
   lastReached = reached;
+  static bool lastLow = false;
+  if (lowBatt != lastLow) { logEvent(lowBatt ? "LOW BATTERY: Peltier off" : "Battery OK again"); lastLow = lowBatt; }
   // A held button changes the target every 150 ms: log it once it has been steady for 1.5 s.
   if (targetC != lastTarget) { lastTarget = targetC; targetSince = now; }
   else if (targetC != loggedTarget && now - targetSince > 1500) { loggedTarget = targetC; logEvent("Target %.0f C", targetC); }
+}
+
+// Saves the target once it has been steady for 3 s (a held button would otherwise write flash often).
+void saveTarget() {
+  static float saved = NAN, last = NAN;
+  static uint32_t since = 0;
+  if (isnan(saved)) saved = last = targetC;
+  if (targetC != last) { last = targetC; since = millis(); }
+  else if (targetC != saved && millis() - since > 3000) { prefs.putFloat("target", targetC); saved = targetC; }
 }
 
 // Tells the phone to refresh: every BLE_PING_MS, and right after a phone command.
@@ -472,6 +515,9 @@ void bleTick() {
 void setup() {
   Serial.begin(115200);
   logEvent("Power on");
+  prefs.begin("thermox", false);                 // saved target and power limit (no run starts)
+  targetC = constrain(prefs.getFloat("target", TARGET_DEFAULT), TARGET_MIN, TARGET_MAX);
+  tecPowerPct = constrain(prefs.getUChar("power", 100), POWER_MIN_PCT, (uint8_t)100);
   if (ENABLE_BT_LOGGING) SerialBT.begin(BT_NAME);
   pinMode(PIN_REN, OUTPUT); pinMode(PIN_LEN, OUTPUT);
   digitalWrite(PIN_REN, LOW); digitalWrite(PIN_LEN, LOW);
@@ -499,6 +545,7 @@ void loop() {
   handlePhone();
   control();
   trackEvents();
+  saveTarget();
   drawUI();
   logData();
   bleTick();

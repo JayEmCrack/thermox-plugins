@@ -13,6 +13,20 @@ Libraries: OneWire, DallasTemperature, U8g2.
 - BTS7960 logic VCC from 5 V; its 3.3 V-level inputs are fine from ESP32 GPIOs.
 - If heating/cooling is reversed, flip `HEAT_ON_RPWM` or swap the TEC leads.
 
+## Saved settings and low-battery cutoff
+- The last target (buttons or phone) and the Peltier power limit are saved in flash (`Preferences`) and come back
+  after power-up. Nothing starts by itself: a run still needs a button press or Start on the phone.
+- **Low-battery cutoff** works only with battery sensing on (`ENABLE_BATTERY_SENSE = true` and the GPIO35 divider).
+  If a cell stays below `LOW_BATT_CUTOFF_V` (3.30 V) for 5 s, the Peltier stops, the OLED and phone show
+  LOW BATT, and new runs are refused until the cell is back above `LOW_BATT_RESUME_V` (3.60 V). Set `BATT_CELLS`
+  to the number of cells in series and choose `BATT_DIVIDER` so GPIO35 stays below about 3.1 V
+  (1S: 100k/100k = 2.0; 3S 12.6 V: e.g. 100k/22k, divider 5.55). This is a second line of defence: still use a
+  protected pack or BMS.
+
+## Compile check (GitHub Actions)
+`.github/workflows/compile-firmware.yml` compiles `ThermoX/` with ESP32 core 3.3.12 on every push and pull request
+that touches the firmware. A red check means the sketch would not build in the Arduino IDE either.
+
 ## Suggested additions
 1. **Battery gauge (FUTURE ADDITION, disabled for now)**: 100 kΩ/100 kΩ divider from the
    battery to GPIO35 plus 100 nF to GND, then set `ENABLE_BATTERY_SENSE = true`.
@@ -43,6 +57,8 @@ What it does:
   fan at the slider speed, also when idle, but while the Peltier runs it never goes below
   `FAN_MIN_PCT_COOL` (70 %) when cooling or `FAN_MIN_PCT_HEAT` (40 %) when heating. The fan goes back to AUTO
   at every power-up. If a FAN STALL fault appears in MANUAL, raise those minimums.
+- **Peltier power**: slider from 30 % to 100 % (`P<n>`). Lower power heats/cools more slowly but the battery lasts
+  longer. Saved on the device.
 - A fault (sensor, over/under temperature, fan stall) cannot be cleared from the phone: fix the cause and turn the
   ThermoX off and on.
 
@@ -66,6 +82,7 @@ characteristic. Commands can also be sent by hand with an app such as nRF Connec
 | `X` | Stop the run (Peltier off) |
 | `FA` | Fan AUTO |
 | `FM60` | Fan MANUAL 60 % (0–100) |
+| `P60` | Peltier power limit 60 % (30–100, saved) |
 
 Notes: one phone at a time; range is about 10 m. There is no PIN, so anyone in range with the page could connect;
 the safety cutoffs still apply. Set `ENABLE_BLE_CONTROL = false` to switch phone control off.
