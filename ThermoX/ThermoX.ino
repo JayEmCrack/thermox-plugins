@@ -46,6 +46,12 @@ constexpr uint8_t PIN_FAN_TACH = 34;   // SUNON FG (input-only pin: needs extern
 
 constexpr uint8_t PIN_BATT_ADC = 35;       // battery divider input (FUTURE ADDITION, see README.md)
 
+// The types below are declared before the first function: the Arduino IDE inserts the prototypes it
+// generates right before it, so every type used in a function signature must already exist.
+enum Mode : uint8_t { IDLE, HEAT, COOL, FAULT };
+enum Fault : uint8_t { F_NONE, F_SENSOR, F_OVERTEMP, F_UNDERTEMP, F_FAN };
+struct Btn { uint8_t pin; bool last; uint32_t since, rep; };
+
 // ---------------- Settings (adjustable from the phone, saved in flash) ----------------
 // Everything that used to be a compile-time constant lives in cfg[]. The numbers below are the factory
 // defaults; the phone's Admin tab changes them over BLE (PIN needed) and each change is saved in flash,
@@ -128,8 +134,6 @@ constexpr uint32_t BLE_PING_MS = 1000;       // how often the phone is told to r
 
 // ---------------- Globals ----------------
 BluetoothSerial SerialBT;
-enum Mode : uint8_t { IDLE, HEAT, COOL, FAULT };
-enum Fault : uint8_t { F_NONE, F_SENSOR, F_OVERTEMP, F_UNDERTEMP, F_FAN };
 const char* MODE_TXT[]  = {"IDLE", "HEATING", "COOLING", "FAULT"};
 const char* FAULT_TXT[] = {"", "SENSOR", "OVER TEMP", "TOO COLD", "FAN STALL"};
 
@@ -173,9 +177,6 @@ bool rebootPending = false; uint32_t rebootAt = 0;
 uint32_t lastActivity = 0;                   // last button press, phone command or run (for the OLED sleep)
 bool oledSleeping = false;
 float tecRamp = 0;                           // soft-start ramp, PWM duty counts
-
-// Declared before the first function so the prototype Arduino generates for btnStep() compiles.
-struct Btn { uint8_t pin; bool last; uint32_t since, rep; };
 
 void IRAM_ATTR onTach() { tachPulses++; }
 
