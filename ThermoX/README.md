@@ -11,17 +11,20 @@ Libraries: OneWire, DallasTemperature, U8g2.
   (FG is open-collector).
 - Common ground between ESP32, BTS7960, sensor, OLED, fan and battery.
 - BTS7960 logic VCC from 5 V; its 3.3 V-level inputs are fine from ESP32 GPIOs.
-- If heating/cooling is reversed, flip `HEAT_ON_RPWM` or swap the TEC leads.
+- If heating/cooling is reversed, switch **Heat on RPWM** in the phone's Admin tab (Peltier) or swap the TEC leads.
 
 ## Saved settings and low-battery cutoff
 - The last target (buttons or phone) and the Peltier power limit are saved in flash (`Preferences`) and come back
   after power-up. Nothing starts by itself: a run still needs a button press or Start on the phone.
-- **Low-battery cutoff** works only with battery sensing on (`ENABLE_BATTERY_SENSE = true` and the GPIO35 divider).
-  If a cell stays below `LOW_BATT_CUTOFF_V` (3.30 V) for 5 s, the Peltier stops, the OLED and phone show
-  LOW BATT, and new runs are refused until the cell is back above `LOW_BATT_RESUME_V` (3.60 V). Set `BATT_CELLS`
-  to the number of cells in series and choose `BATT_DIVIDER` so GPIO35 stays below about 3.1 V
-  (1S: 100k/100k = 2.0; 3S 12.6 V: e.g. 100k/22k, divider 5.55). This is a second line of defence: still use a
-  protected pack or BMS.
+- **Low-battery cutoff** works only with battery sensing on (Admin > Battery > *Battery sensing*, plus the GPIO35
+  divider). If a cell stays below the cutoff (3.30 V) for 5 s, the Peltier stops, the OLED and phone show
+  LOW BATT, and new runs are refused until the cell is back above the resume level (3.60 V). Set *Cells in series*
+  to the number of cells and the *Divider ratio* so GPIO35 stays below about 3.1 V
+  (1S: 100k/100k = 2.0; 3S 12.6 V: e.g. 100k/22k, ratio 5.55), or use **Calibrate** with a multimeter reading.
+  This is a second line of defence: still use a protected pack or BMS.
+- All of these numbers are **settings** now (see *Admin* below): they are changed from the phone and saved in
+  flash, so the sketch does not have to be edited and uploaded again. The factory values are the table
+  `PARAMS[]` at the top of `ThermoX.ino`. The GPIO pin assignments are not settings; they stay in the sketch.
 
 ## Compile check (GitHub Actions)
 `.github/workflows/compile-firmware.yml` compiles `ThermoX/` with ESP32 core 3.3.12 on every push and pull request
@@ -29,7 +32,7 @@ that touches the firmware. A red check means the sketch would not build in the A
 
 ## Suggested additions
 1. **Battery gauge (FUTURE ADDITION, disabled for now)**: 100 kΩ/100 kΩ divider from the
-   battery to GPIO35 plus 100 nF to GND, then set `ENABLE_BATTERY_SENSE = true`.
+   battery to GPIO35 plus 100 nF to GND, then switch on *Battery sensing* in the phone Admin tab (Battery).
 2. **Low-battery cutoff / undervoltage lockout**: stop the TEC below ~3.3 V/cell
    (use a protected Li-ion pack or BMS).
 3. **Second DS18B20 on the heat sink** (same 1-Wire bus): cut the TEC if the hot side
@@ -53,11 +56,11 @@ What it does:
 - **Temperature control**: choose the target with − / + and press **Start**. This works exactly like a press of
   the device buttons: one run at full power to the target, then the Peltier and fan stop. **Stop** ends the run.
   The 60 s hot/cold reversal rest and all fault cutoffs still apply.
-- **Fan control**: **AUTO** is the normal behaviour (100 % cooling, 50 % heating, off when idle). **MANUAL** runs the
-  fan at the slider speed, also when idle, but while the Peltier runs it never goes below
-  `FAN_MIN_PCT_COOL` (70 %) when cooling or `FAN_MIN_PCT_HEAT` (40 %) when heating. The fan goes back to AUTO
+- **Fan control**: **AUTO** is the normal behaviour (100 % cooling, 50 % heating, off when idle; adjustable in Admin).
+  **MANUAL** runs the fan at the slider speed, also when idle, but while the Peltier runs it never goes below the
+  fan minimums (70 % when cooling, 40 % when heating by default). The fan goes back to AUTO
   at every power-up. If a FAN STALL fault appears in MANUAL, raise those minimums.
-- **Peltier power**: slider from 30 % to 100 % (`P<n>`). Lower power heats/cools more slowly but the battery lasts
+- **Peltier power**: slider from the lowest power (30 % by default) to 100 % (`P<n>`). Lower power heats/cools more slowly but the battery lasts
   longer. Saved on the device.
 - A fault (sensor, over/under temperature, fan stall) cannot be cleared from the phone: fix the cause and turn the
   ThermoX off and on.
@@ -77,15 +80,55 @@ characteristic. Commands can also be sent by hand with an app such as nRF Connec
 
 | Command | Meaning |
 |---|---|
-| `T30` | Set the target to 30 °C (20–50) and start a run (same as a button press) |
+| `T30` | Set the target to 30 °C (within the target range, 20–50 by default) and start a run (same as a button press) |
 | `S` | Start a run toward the current target |
 | `X` | Stop the run (Peltier off) |
 | `FA` | Fan AUTO |
 | `FM60` | Fan MANUAL 60 % (0–100) |
-| `P60` | Peltier power limit 60 % (30–100, saved) |
+| `P60` | Peltier power limit 60 % (lowest power setting to 100, saved) |
+| `U1234`, `L` | Admin unlock with the PIN, lock again (see below) |
+| `Cot=55`, `Cnm=Bottle`, `Cpin=4821`, `Ccal=12.6` | Change a setting, the device name, the PIN, or calibrate the battery (admin only) |
+| `TF5`, `RD`, `RF`, `RB` | Fan test for 5 s, factory defaults, clear fault history, reboot (admin only) |
+| `G0` ... `G7` | Choose which settings group the next read of the settings characteristic returns |
 
-Notes: one phone at a time; range is about 10 m. There is no PIN, so anyone in range with the page could connect;
-the safety cutoffs still apply. Set `ENABLE_BLE_CONTROL = false` to switch phone control off.
+Notes: one phone at a time; range is about 10 m. The run controls above need no PIN, so anyone in range with the
+page could start or stop a run; the safety cutoffs still apply. Settings need the admin PIN (below).
+Set `ENABLE_BLE_CONTROL = false` to switch phone control off.
+
+### Admin: change settings without uploading
+
+The **Admin** card at the bottom of the phone page shows device info (firmware, uptime, last reset reason,
+sensor health, free memory, fault counters) and, after you type the PIN, the settings. Every change is checked by the
+firmware (each value has a lowest and highest limit, and settings that belong together are checked as a set), then
+saved in flash and used at once. A refused change leaves the old value and shows in the Activity list.
+
+| Tab | What you can change |
+|---|---|
+| Safety | Over-temperature cutoff, freezing cutoff, lowest and highest target, start band |
+| Peltier | Lowest power, PWM duty at 100 %, hot/cold reversal rest, BTS7960 direction (heat on RPWM or LPWM), fan run-on, soft start ramp |
+| Fan | MANUAL fan minimums (cooling/heating), AUTO fan speeds, stall RPM and grace time, tach pulses per turn, **Test fan** |
+| Sensor | Temperature offset (calibration), sensor timeout |
+| Battery | Sensing on/off, cells in series, divider ratio, empty/full voltage, low-battery cutoff, delay and resume level, **Calibrate** from a multimeter reading |
+| Display | OLED brightness, rotate 180°, inverted colours, Fahrenheit, sleep after N seconds (a press on a dark display only wakes it) |
+| System | Logging period, device name (after a reboot), admin PIN |
+| Tools | Export / import all settings as a file, factory defaults, clear fault history, reboot, lock now |
+
+Safety rules built in:
+- **PIN**: 4 to 8 digits, factory PIN `1234` (the page warns until it is changed). Five wrong tries lock the PIN for
+  60 s. The unlock ends 5 min after the last admin action, when you press **Lock**, and when the phone disconnects.
+  Forgot the PIN: hold both buttons while switching the ThermoX on, for 3 s, and it goes back to `1234`.
+- Hard limits are in the firmware: the over-temperature cutoff stays at least 3 °C above the highest target, the
+  freezing cutoff at least 3 °C below the lowest target, and the low-battery cutoff below the resume level, so a wrong
+  entry cannot switch the protection off.
+- The BTS7960 direction and *Factory defaults* are refused while the Peltier is running, so the Peltier is never
+  reversed without its rest.
+- The GPIO pin assignments cannot be changed from the phone.
+- Settings that are the same as the factory value are not stored; damaged or conflicting saved settings fall back to
+  the factory values at power-up. A faulty setting never needs a re-upload: use *Factory defaults*.
+
+The settings travel on a fifth BLE characteristic (`7a3c0005-...`, read): the page writes `G<n>` to the command
+characteristic and reads the group as JSON `[key, value, lowest, highest]`. Group 7 is the read-only diagnostics.
+The firmware of an older ThermoX has no such characteristic; the page then shows "upload the new ThermoX.ino once".
 
 ## Bluetooth logging to MySQL (experiments)
 
@@ -114,7 +157,7 @@ TEMP=28.40,TARGET=22.0,MODE=COOLING,PELTIER=1,FAN=1
 | `MODE` | `HEATING`, `COOLING`, `IDLE` (inside the 0.5 °C hysteresis band) or `FAULT` |
 | `PELTIER` | 1 when the BTS7960 is driving the Peltier, else 0 |
 | `FAN` | 1 when the SUNON fan is commanded on, else 0 |
-| `BATTERY` | Volts. **Only sent when `ENABLE_BATTERY_SENSE = true`** (not implemented yet, so it is omitted) |
+| `BATTERY` | Volts. **Only sent when battery sensing is switched on in the Admin tab** (not implemented yet, so it is omitted) |
 
 Nothing is sent until the DS18B20 gives a valid reading. If the sketch reports "too big", choose
 Tools → Partition Scheme → **Huge APP** (Classic Bluetooth uses a lot of flash).

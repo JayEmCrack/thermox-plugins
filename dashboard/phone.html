@@ -154,6 +154,41 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   box-shadow: 0 10px 30px rgba(0,0,0,.45); animation: tin .25s ease; }
 .toast.err { border-color: rgba(255,84,104,.6); } .toast.ok { border-color: rgba(61,220,151,.5); }
 @keyframes tin { from { opacity: 0; transform: translateY(10px); } }
+/* admin */
+.diag { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+@media (min-width: 560px) { .diag { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.diag .tile .v { font-size: 16px; }
+.pinrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+input[type=text], input[type=password], input[type=number], select { font: inherit; color: var(--text); background: rgba(0,0,0,.28); border: 1px solid var(--card-line);
+  border-radius: 12px; min-height: 44px; padding: 0 12px; min-width: 0; }
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pinrow input { flex: 1 1 140px; letter-spacing: 3px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.tabs button { min-height: 38px; padding: 0 13px; border-radius: 11px; font-weight: 700; font-size: 13.5px; color: var(--muted);
+  background: rgba(255,255,255,.06); border: 1px solid var(--card-line); }
+.tabs button.sel { color: #fff; background: linear-gradient(135deg, var(--accent), #5b7cff); border-color: transparent; }
+.arow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+.arow:last-of-type { border-bottom: 0; }
+.arow .atxt b { display: block; font-size: 14.5px; }
+.arow .atxt small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.35; margin-top: 2px; }
+.arow .actl { display: flex; align-items: center; gap: 6px; }
+.arow input[type=number] { width: 104px; text-align: right; }
+.arow .unit { color: var(--muted); font-size: 13px; min-width: 28px; }
+.arow input[type=range] { width: 170px; margin: 0; }
+.sw { position: relative; width: 52px; height: 30px; flex: none; }
+.sw input { position: absolute; inset: 0; opacity: 0; margin: 0; width: 100%; height: 100%; cursor: pointer; }
+.sw i { position: absolute; inset: 0; border-radius: 30px; background: rgba(255,255,255,.14); border: 1px solid var(--card-line); transition: background .2s; pointer-events: none; }
+.sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.sw input:checked + i { background: var(--ok); } .sw input:checked + i::after { transform: translateX(22px); }
+.sw input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sw input:disabled + i { opacity: .4; }
+.sect { margin: 16px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.btnrow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.btnrow .btn { flex: 1 1 150px; }
+.btn.warn { background: linear-gradient(135deg, #ffb347, #ff7a45); box-shadow: 0 6px 18px rgba(255,122,69,.3); color: #20140a; }
+.inline { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.inline input[type=text], .inline input[type=password], .inline input[type=number] { flex: 1 1 130px; }
+.warnbox { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; font-size: 13.5px; background: rgba(255,194,71,.12); border: 1px solid rgba(255,194,71,.35); color: #ffe2a6; }
 footer { max-width: 980px; margin: 16px auto 0; color: var(--dim); font-size: 12px; text-align: center; }
 .hidden { display: none !important; }
 </style>
@@ -217,10 +252,10 @@ footer { max-width: 980px; margin: 16px auto 0; color: var(--dim); font-size: 12
       <button id="startBtn" class="btn go" disabled>&#9654; Start</button>
       <button id="stopBtn" class="btn stop" disabled>&#9632; Stop</button>
     </div>
-    <p class="note">Start works like a button press: one run (heat or cool) to the target, then the Peltier and fan stop. Hot&nbsp;&harr;&nbsp;cold switching waits 60&nbsp;s.</p>
+    <p class="note">Start works like a button press: one run (heat or cool) to the target, then the Peltier and fan stop. Hot&nbsp;&harr;&nbsp;cold switching waits for a rest time first (60&nbsp;s unless changed in Admin).</p>
     <h2 style="margin-top:16px">Peltier power <span class="right num" id="pwL">--</span></h2>
     <input id="pwSlider" type="range" min="30" max="100" step="5" value="100" aria-label="Peltier power limit" disabled>
-    <div class="range-ticks"><span>30 % (battery saver)</span><span>100 % (fastest)</span></div>
+    <div class="range-ticks"><span id="pminL">30 % (battery saver)</span><span>100 % (fastest)</span></div>
     <p class="note">Lower power = slower heating/cooling but the battery lasts longer. Saved on the device.</p>
   </section>
 
@@ -247,6 +282,25 @@ footer { max-width: 980px; margin: 16px auto 0; color: var(--dim); font-size: 12
     <p class="note" id="fanNote">AUTO: 100 % when cooling, 50 % when heating, off when idle.</p>
   </section>
 
+  <section class="card wide" id="adminCard">
+    <h2>Admin <span class="right" id="adminState">Locked</span></h2>
+    <div id="adminOld" class="warnbox hidden">This ThermoX has older firmware without the settings channel. Upload the new <b>ThermoX.ino</b> once to use Admin.</div>
+    <div class="diag" id="diag"></div>
+    <div id="adminLocked">
+      <p class="note" style="margin-top:0">Change safety limits, Peltier, fan, sensor, battery and OLED settings over Bluetooth. They are saved on the device, so nothing needs to be uploaded.</p>
+      <div class="pinrow">
+        <input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="Admin PIN" aria-label="Admin PIN" disabled>
+        <button id="unlockBtn" class="btn small" disabled>Unlock</button>
+      </div>
+      <p class="note">Factory PIN: 1234. Five wrong tries lock the PIN for 60 s. Forgotten PIN: hold both buttons while switching the ThermoX on for 3 s.</p>
+    </div>
+    <div id="adminOpen" class="hidden">
+      <div id="pinWarn" class="warnbox hidden">The factory PIN (1234) is still set. Change it under <b>System</b>.</div>
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <div id="adminForm"></div>
+    </div>
+  </section>
+
   <section class="card wide">
     <h2>Temperature history <span class="right" id="chartSpan"></span></h2>
     <div class="chartbox"><canvas id="chart"></canvas></div>
@@ -267,9 +321,10 @@ footer { max-width: 980px; margin: 16px auto 0; color: var(--dim); font-size: 12
 // ---- Protocol (must match ThermoX.ino) ----
 const SVC = '7a3c0000-63b5-4559-b515-2c37cc077186';
 const CH_STATUS = '7a3c0001-63b5-4559-b515-2c37cc077186';   // read: JSON status
-const CH_CMD    = '7a3c0002-63b5-4559-b515-2c37cc077186';   // write: T<n>, S, X, FA, FM<n>
+const CH_CMD    = '7a3c0002-63b5-4559-b515-2c37cc077186';   // write: T<n>, S, X, FA, FM<n>, P<n>, admin: U<pin>, C<key>=<v>, G<n> ...
 const CH_NOTIFY = '7a3c0003-63b5-4559-b515-2c37cc077186';   // notify: u16 counter, u16 event count
 const CH_LOG    = '7a3c0004-63b5-4559-b515-2c37cc077186';   // read: JSON event log
+const CH_CFG    = '7a3c0005-63b5-4559-b515-2c37cc077186';   // read: JSON settings group chosen with G<n>
 const enc = new TextEncoder(), dec = new TextDecoder();
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -277,7 +332,7 @@ const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => se
 
 // ---- Bluetooth link (Web Bluetooth) ----
 class BleLink {
-  constructor(onPing, onDrop) { this.onPing = onPing; this.onDrop = onDrop; this.dev = null; this.ch = {}; this.q = Promise.resolve(); this.userClose = false; this.live = false; }
+  constructor(onPing, onDrop) { this.onPing = onPing; this.onDrop = onDrop; this.dev = null; this.ch = {}; this.q = Promise.resolve(); this.cfgQ = Promise.resolve(); this.userClose = false; this.live = false; }
   // GATT allows one operation at a time: queue them.
   op(fn, what) { const p = this.q.then(() => withTimeout(fn(), 8000, what)); this.q = p.catch(() => {}); return p; }
   async connect() {
@@ -298,6 +353,7 @@ class BleLink {
       const svc = await server.getPrimaryService(SVC);
       const ch = {};
       for (const [k, u] of [['status', CH_STATUS], ['cmd', CH_CMD], ['notify', CH_NOTIFY], ['log', CH_LOG]]) ch[k] = await svc.getCharacteristic(u);
+      try { ch.cfg = await svc.getCharacteristic(CH_CFG); } catch (_) { /* older firmware: no settings channel */ }
       ch.notify.addEventListener('characteristicvaluechanged', e => {
         const v = e.target.value;
         if (v && v.byteLength >= 4) this.onPing(v.getUint16(2, true));
@@ -323,6 +379,13 @@ class BleLink {
   }
   status() { return this.readJson('status'); }
   log() { return this.readJson('log'); }
+  get hasCfg() { return !!this.ch.cfg; }
+  // Settings group g: select it with "G<g>", then read. Done as a pair, one at a time.
+  cfg(g) {
+    const run = async () => { await this.send('G' + g); return this.readJson('cfg'); };
+    const p = this.cfgQ.then(run); this.cfgQ = p.catch(() => {});
+    return p;
+  }
   send(cmd) {
     const c = this.ch.cmd, data = enc.encode(cmd);
     return this.op(() => c.writeValueWithResponse ? c.writeValueWithResponse(data) : c.writeValue(data), 'Send');
@@ -330,11 +393,20 @@ class BleLink {
 }
 
 // ---- Demo device: same commands and JSON as the firmware, with a simple heat model ----
+// Same settings table as the firmware: [key, group, lowest, highest, factory value].
+const DEMO_PARAMS = [['ot',0,40,60,55],['ut',0,1,15,5],['tmin',0,5,40,20],['tmax',0,25,60,50],['sb',0,.1,3,.5],
+  ['pmin',1,10,100,30],['md',1,50,255,255],['cd',1,10,600,60],['hr',1,0,1,1],['ro',1,0,300,0],['rp',1,0,30,0],
+  ['fmc',2,30,100,70],['fmh',2,20,100,40],['fac',2,40,100,100],['fah',2,20,100,50],['fr',2,100,3000,500],['fg',2,2,30,5],['fpp',2,1,4,2],
+  ['off',3,-5,5,0],['sf',3,2,60,5],
+  ['be',4,0,1,0],['bc',4,1,6,1],['bd',4,1,20,2],['bm',4,2.5,4,3.3],['bf',4,3.8,4.4,4.15],['lc',4,2.5,4,3.3],['ld',4,1,60,5],['lr',4,3,4.2,3.6],
+  ['ob',5,5,100,100],['or',5,0,1,0],['oi',5,0,1,0],['ou',5,0,1,0],['os',5,0,3600,0],['lp',6,1,60,2]];
 class DemoLink {
   constructor(onPing, onDrop) {
     this.onPing = onPing; this.onDrop = onDrop; this.connectedFlag = false;
     const d = this.d = { water: 27.6, target: 25, mode: 'IDLE', runDir: 'IDLE', fault: '', reached: false, newRun: false, wait: 0,
       lastDriven: 'IDLE', lastActive: -1e9, fanCtl: 'auto', fanPct: 50, power: 100, floor: 0, fanDuty: 0, pel: 0, rpm: 0, t0: Date.now() - 95000, ev: [], evTotal: 0 };
+    this.c = {}; for (const p of DEMO_PARAMS) this.c[p[0]] = p[4];
+    this.name = 'ThermoX'; this.pin = '1234'; this.adminUntil = 0; this.fails = 0; this.lockUntil = 0; this.faults = [0, 0, 0, 0]; this.fanTestEnd = 0;
     this.ev('Power on');
   }
   up() { return Date.now() - this.d.t0; }
@@ -344,16 +416,54 @@ class DemoLink {
   get connected() { return this.connectedFlag; }
   disconnect() { clearInterval(this.timer); clearInterval(this.pinger); this.connectedFlag = false; this.onDrop(true); }
   async status() { await sleep(40); const d = this.d;
-    return { t: +d.water.toFixed(2), tg: d.target, tmin: 20, tmax: 50, m: d.mode, f: d.fault, r: d.reached ? 1 : 0, w: d.wait, pel: d.pel,
-      fan: d.fanDuty, rpm: d.rpm, fc: d.fanCtl, fp: d.fanPct, fmin: d.floor, bat: -1, bv: null, lb: 0, pw: d.power, up: this.up(), ev: d.evTotal }; }
+    const ad = this.adminLeft(), al = Math.max(0, Math.ceil((this.lockUntil - Date.now()) / 1000));
+    return { t: +d.water.toFixed(2), tg: d.target, tmin: this.c.tmin, tmax: this.c.tmax, m: d.mode, f: d.fault, r: d.reached ? 1 : 0, w: d.wait, pel: d.pel,
+      fan: d.fanDuty, rpm: d.rpm, fc: d.fanCtl, fp: d.fanPct, fmin: d.floor, bat: -1, bv: null, lb: 0, pw: d.power, pmin: this.c.pmin,
+      ad, al, dp: ad > 0 && this.pin === '1234' ? 1 : 0, up: this.up(), ev: d.evTotal }; }
+  adminLeft() { return Math.max(0, Math.ceil((this.adminUntil - Date.now()) / 1000)); }
+  valid(c) {
+    for (const p of DEMO_PARAMS) if (!(c[p[0]] >= p[2] && c[p[0]] <= p[3])) return false;
+    return c.tmax >= c.tmin + 5 && c.tmax + 3 <= c.ot && c.ut + 3 <= c.tmin && c.bm + .3 <= c.bf && c.lc + .1 <= c.lr && c.lr <= c.bf;
+  }
+  async cfg(g) { await sleep(40);
+    if (g === 7) return { g, fw: '1.1', rr: 'POWER ON', h: 214000, fc: this.faults.slice(), lf: 0, sa: 300, br: 0 };
+    const r = { g, p: DEMO_PARAMS.filter(p => p[1] === g).map(p => [p[0], +this.c[p[0]].toFixed(3), p[2], p[3]]) };
+    if (g === 6) r.nm = this.name;
+    return r; }
+  admin(c) { const d = this.d, now = Date.now(); let m;
+    if (c[0] === 'U') {
+      if (now < this.lockUntil) { this.ev('Admin: PIN locked out'); return; }
+      if (c.slice(1) === this.pin) { this.adminUntil = now + 300000; this.fails = 0; this.ev('Admin unlocked'); }
+      else if (++this.fails >= 5) { this.fails = 0; this.lockUntil = now + 60000; this.ev('Wrong PIN: locked 60 s'); }
+      else this.ev('Admin: wrong PIN');
+      return; }
+    if (c === 'L') { this.adminUntil = 0; this.ev('Admin locked'); return; }
+    if (!this.adminLeft()) { this.ev('Admin: locked, enter PIN'); return; }
+    this.adminUntil = now + 300000;
+    if (c === 'RB') this.ev('Rebooting');
+    else if (c === 'RF') { this.faults = [0, 0, 0, 0]; this.ev('Fault history cleared'); }
+    else if (c === 'RD') { if (d.pel > 0) this.ev('Reset: stop the run first'); else { for (const p of DEMO_PARAMS) this.c[p[0]] = p[4]; this.name = 'ThermoX'; this.ev('Settings reset'); } }
+    else if ((m = /^TF(\d+)$/.exec(c))) { if (d.mode === 'IDLE' && +m[1] >= 1 && +m[1] <= 30) { this.fanTestEnd = now + m[1] * 1000; this.ev('Fan test ' + m[1] + 's'); } else this.ev('Fan test refused'); }
+    else if ((m = /^C(\w+)=(.*)$/.exec(c))) {
+      const [, k, v] = m;
+      if (k === 'pin') { if (/^\d{4,8}$/.test(v)) { this.pin = v; this.ev('PIN changed'); } else this.ev('PIN needs 4-8 digits'); }
+      else if (k === 'nm') { if (/^[A-Za-z0-9 _-]{1,15}$/.test(v)) { this.name = v; this.ev('Name saved, reboot'); } else this.ev('Name refused'); }
+      else if (k === 'cal') this.ev('Calibration refused');
+      else if (k in this.c && v !== '' && isFinite(+v)) {
+        const n = Object.assign({}, this.c, { [k]: +v });
+        if (this.valid(n) && !(k === 'hr' && d.pel > 0)) { this.c = n; d.target = Math.min(Math.max(d.target, n.tmin), n.tmax); d.power = Math.max(d.power, n.pmin); this.ev('Set ' + k + '=' + v); }
+        else this.ev('Refused ' + k + '=' + v);
+      } else this.ev('Refused ' + k + '=' + v);
+    } else this.ev('Phone: bad command'); }
   async log() { await sleep(40); return { up: this.up(), e: this.d.ev.slice() }; }
   async send(c) { await sleep(60); const d = this.d; let m;
-    if ((m = /^T(\d+)$/.exec(c)) && +m[1] >= 20 && +m[1] <= 50) { d.target = +m[1]; d.newRun = true; }
+    if (/^(U|L$|C|TF|R[DFB]$)/.test(c)) this.admin(c);
+    else if ((m = /^T(\d+)$/.exec(c)) && +m[1] >= this.c.tmin && +m[1] <= this.c.tmax) { d.target = +m[1]; d.newRun = true; }
     else if (c === 'S') { d.newRun = true; this.ev('Phone: start'); }
     else if (c === 'X') { d.runDir = 'IDLE'; d.newRun = false; d.reached = false; this.ev('Phone: stop'); }
     else if (c === 'FA') { d.fanCtl = 'auto'; this.ev('Phone: fan AUTO'); }
     else if ((m = /^FM(\d+)$/.exec(c)) && +m[1] <= 100) { d.fanCtl = 'manual'; d.fanPct = +m[1]; this.ev('Phone: fan ' + m[1] + '%'); }
-    else if ((m = /^P(\d+)$/.exec(c)) && +m[1] >= 30 && +m[1] <= 100) { d.power = +m[1]; this.ev('Phone: power ' + m[1] + '%'); }
+    else if ((m = /^P(\d+)$/.exec(c)) && +m[1] >= this.c.pmin && +m[1] <= 100) { d.power = +m[1]; this.ev('Phone: power ' + m[1] + '%'); }
     else this.ev('Phone: bad command');
     this.tick(0); setTimeout(() => this.onPing(d.evTotal), 50); }
   tick(dt) {
@@ -364,12 +474,12 @@ class DemoLink {
         if (d.runDir === 'IDLE') d.reached = true;
       } else if ((d.runDir === 'HEATING' && d.water >= d.target) || (d.runDir === 'COOLING' && d.water <= d.target)) { d.runDir = 'IDLE'; d.reached = true; }
       let want = d.runDir; d.wait = 0;
-      if (want !== 'IDLE' && d.lastDriven !== 'IDLE' && want !== d.lastDriven && now - d.lastActive < 60000) {
-        d.wait = Math.ceil((60000 - (now - d.lastActive)) / 1000); want = 'IDLE'; }
+      if (want !== 'IDLE' && d.lastDriven !== 'IDLE' && want !== d.lastDriven && now - d.lastActive < this.c.cd * 1000) {
+        d.wait = Math.ceil((this.c.cd * 1000 - (now - d.lastActive)) / 1000); want = 'IDLE'; }
       d.mode = want;
-      d.floor = want === 'COOLING' ? 70 : want === 'HEATING' ? 40 : 0;
-      const auto = want === 'COOLING' ? 100 : want === 'HEATING' ? 50 : 0;
-      d.fanDuty = d.fanCtl === 'auto' ? auto : Math.max(d.fanPct, d.floor);
+      d.floor = want === 'COOLING' ? this.c.fmc : want === 'HEATING' ? this.c.fmh : 0;
+      const auto = want === 'COOLING' ? this.c.fac : want === 'HEATING' ? this.c.fah : 0;
+      d.fanDuty = want === 'IDLE' && Date.now() < this.fanTestEnd ? 100 : d.fanCtl === 'auto' ? auto : Math.max(d.fanPct, d.floor);
       d.pel = want === 'IDLE' ? 0 : d.power;
       if (want !== 'IDLE') { d.lastActive = now; d.lastDriven = want; }
     }
@@ -462,6 +572,7 @@ function render(s) {
   $('fanAuto').classList.toggle('sel', s.fc === 'auto'); $('fanMan').classList.toggle('sel', s.fc === 'manual');
   if (!sliderBusy) { $('fanSlider').value = s.fp; paintSlider(); }
   $('fanSlider').disabled = !link || !link.connected || s.fc !== 'manual';
+  if (typeof s.pmin === 'number') { $('pwSlider').min = s.pmin; $('pminL').textContent = s.pmin + ' % (battery saver)'; }
   if (typeof s.pw === 'number') {
     if (!pwBusy) { $('pwSlider').value = s.pw; paintPw(); }
     $('pwSlider').disabled = !link || !link.connected;
@@ -470,11 +581,12 @@ function render(s) {
   $('fanRpmH').textContent = s.rpm ? s.rpm + ' rpm' : '';
   const icon = $('fanIcon'); icon.classList.toggle('go', s.fan > 0); icon.style.setProperty('--spd', (1.6 - s.fan / 80).toFixed(2) + 's');
   let note;
-  if (s.fc === 'auto') note = 'AUTO: 100 % when cooling, 50 % when heating, off when idle.';
+  if (s.fc === 'auto') note = 'AUTO: fast when cooling, medium when heating, off when idle (speeds can be changed in Admin).';
   else if ((s.m === 'HEATING' || s.m === 'COOLING') && s.fp < s.fmin) note = 'Running at the safety minimum of ' + s.fmin + ' % while the Peltier is ' + s.m.toLowerCase() + '.';
-  else note = 'MANUAL: the fan runs at this speed, also when idle. While the Peltier runs it never goes below 70 % (cooling) or 40 % (heating).';
+  else note = 'MANUAL: the fan runs at this speed, also when idle. While the Peltier runs it never goes below the safety minimum (cooling: ' + (cfgVals.fmc ? cfgVals.fmc.v : 70) + ' %, heating: ' + (cfgVals.fmh ? cfgVals.fmh.v : 40) + ' %).';
   $('fanNote').textContent = note;
 
+  updateAdmin(s);
   samples.push({ t: Date.now(), temp, target: s.tg });
   while (samples.length && Date.now() - samples[0].t > 15 * 60000) samples.shift();
   drawChart();
@@ -486,7 +598,7 @@ function showPending() {
   $('plus').disabled = !link || !link.connected || !st || pending >= st.tmax;
 }
 let pwBusy = false;
-function paintPw() { const v = +$('pwSlider').value; $('pwSlider').style.setProperty('--p', (v - 30) / 70 * 100 + '%'); $('pwL').textContent = v + ' %'; }
+function paintPw() { const v = +$('pwSlider').value; const lo = +$('pwSlider').min; $('pwSlider').style.setProperty('--p', (v - lo) / (100 - lo) * 100 + '%'); $('pwL').textContent = v + ' %'; }
 function paintSlider() {
   const v = +$('fanSlider').value;
   $('fanSlider').style.setProperty('--p', v + '%'); $('fanSetL').textContent = 'Manual: ' + v + ' %';
@@ -549,7 +661,7 @@ function onPing(evCount) {
   refreshStatus();
   if (evCount !== lastEv) { lastEv = evCount; refreshLog(); }
 }
-function offline() { setControls(false); setPill(demo ? 'Demo · not connected' : 'Not connected', demo ? 'demo' : ''); $('connectBtn').textContent = 'Connect'; }
+function offline() { setControls(false); lockUi(); setPill(demo ? 'Demo · not connected' : 'Not connected', demo ? 'demo' : ''); $('connectBtn').textContent = 'Connect'; }
 async function onDrop(byUser) {
   setControls(false);
   if (byUser || demo || !wantOnline) { wantOnline = false; offline(); addEvent(Date.now(), 'Disconnected', 'APP'); return; }
@@ -616,6 +728,239 @@ $('fanSlider').addEventListener('change', async () => {
   const v = $('fanSlider').value;
   await send('FM' + v, 'Fan: MANUAL ' + v + ' %'); sliderBusy = false;
 });
+
+// ---- Admin: settings stored on the device, changed over BLE ----
+const GROUPS = [[0, 'Safety'], [1, 'Peltier'], [2, 'Fan'], [3, 'Sensor'], [4, 'Battery'], [5, 'Display'], [6, 'System'], ['t', 'Tools']];
+// key: [label, unit, step, hint, kind]  kind: 'bool' = switch, 'risk' = asks before changing, 'slider' = slider
+const UI = {
+  ot: ['Over-temperature cutoff', '°C', 0.5, 'Hard stop: Peltier off and fan full above this. Stays at least 3 °C above the highest target.', 'risk'],
+  ut: ['Freezing cutoff', '°C', 0.5, 'Hard stop below this. Stays at least 3 °C below the lowest target.', 'risk'],
+  tmin: ['Lowest target', '°C', 1, 'Lower end of the target buttons and the phone stepper.'],
+  tmax: ['Highest target', '°C', 1, 'Upper end. At least 5 °C above the lowest target.'],
+  sb: ['Start band', '°C', 0.1, 'A press this close to the target counts as already reached.'],
+  pmin: ['Lowest Peltier power', '%', 5, 'Lowest value of the power slider.'],
+  md: ['Peltier duty at 100 %', '/255', 5, 'PWM value at full power. Lower it to cap the Peltier current.', 'risk'],
+  cd: ['Reversal rest', 's', 5, 'The Peltier stays off this long before switching hot ↔ cold.', 'risk'],
+  hr: ['Heat on RPWM', '', 1, 'BTS7960 direction. Turn off if your wiring heats on LPWM. Only while the Peltier is off.', 'bool risk'],
+  ro: ['Fan run-on after a run', 's', 1, '0 = the fan stops at once.'],
+  rp: ['Soft start', 's', 1, 'Seconds to ramp the Peltier from 0 to full power. 0 = off.'],
+  fmc: ['Manual fan minimum, cooling', '%', 5, 'MANUAL fan never goes below this while cooling (the hot side needs air).'],
+  fmh: ['Manual fan minimum, heating', '%', 5, 'MANUAL fan never goes below this while heating.'],
+  fac: ['AUTO fan speed, cooling', '%', 5, 'Fan speed in AUTO while cooling.'],
+  fah: ['AUTO fan speed, heating', '%', 5, 'Fan speed in AUTO while heating.'],
+  fr: ['Stall RPM', 'rpm', 50, 'Below this while the fan is commanded = FAN STALL fault.', 'risk'],
+  fg: ['Stall grace time', 's', 1, 'Wait this long after the fan speeds up before checking for a stall.'],
+  fpp: ['Tach pulses per turn', '', 1, 'SUNON 4-wire fans give 2.'],
+  off: ['Temperature offset', '°C', 0.1, 'Added to the sensor reading (calibration against a reference thermometer).'],
+  sf: ['Sensor timeout', 's', 1, 'No reading for this long = SENSOR fault.'],
+  be: ['Battery sensing', '', 1, 'Switch on only after the divider on GPIO35 is built. Needed for the gauge and the low-battery cutoff.', 'bool risk'],
+  bc: ['Cells in series', 'S', 1, 'Li-ion cells in the pack (3S = 3).', 'risk'],
+  bd: ['Divider ratio', '×', 0.001, 'Pack volts ÷ GPIO35 volts, e.g. 100k + 22k over 22k = 5.545. Use Calibrate below to work it out.', 'risk'],
+  bm: ['Empty voltage per cell', 'V', 0.05, '0 % on the gauge.'],
+  bf: ['Full voltage per cell', 'V', 0.05, '100 % on the gauge.'],
+  lc: ['Low-battery cutoff per cell', 'V', 0.05, 'The Peltier stops when a cell stays below this.', 'risk'],
+  ld: ['Cutoff delay', 's', 1, 'How long below the cutoff before stopping (ignores short dips under load).'],
+  lr: ['Resume above per cell', 'V', 0.05, 'New runs are allowed again above this.'],
+  ob: ['Brightness', '%', 5, '', 'slider'],
+  or: ['Rotate 180°', '', 1, 'Turn the picture upside down.', 'bool'],
+  oi: ['Inverted colours', '', 1, 'Light text on dark or dark text on light.', 'bool'],
+  ou: ['Fahrenheit on the OLED', '', 1, 'The OLED shows °F. The phone page and the logs stay in °C.', 'bool'],
+  os: ['Sleep after', 's', 10, 'The OLED goes dark after this long without a button press or phone command. 0 = always on. It stays lit while running or on a fault.'],
+  lp: ['Logging period', 's', 1, 'How often a line is sent to the PC logger.'],
+};
+const FAULT_NAMES = ['none', 'sensor', 'over temp', 'too cold', 'fan stall'];
+let cfgVals = {}, cfgName = '', unlocked = false, adminTab = 0, cfgBusy = false, diagBusy = false;
+const nf = v => String(+(+v).toFixed(3));
+const fmtDur = ms => { const t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60); return (h ? h + ' h ' : '') + m + ' min'; };
+const mmss = t => Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); }
+  for (const kid of kids) if (kid != null) e.append(kid.nodeType ? kid : document.createTextNode(kid));
+  return e;
+}
+function lockUi() {
+  unlocked = false; cfgVals = {};
+  $('adminLocked').classList.remove('hidden'); $('adminOpen').classList.add('hidden');
+  $('adminState').textContent = 'Locked'; $('pinIn').disabled = true; $('unlockBtn').disabled = true; $('diag').replaceChildren();
+  $('adminOld').classList.add('hidden');
+}
+function updateAdmin(s) {
+  const on = !!(link && link.connected), has = !link || link.hasCfg !== false;
+  $('adminOld').classList.toggle('hidden', has);
+  $('pinIn').disabled = !on || !has; $('unlockBtn').disabled = !on || !has;
+  const was = unlocked; unlocked = on && has && s.ad > 0;
+  $('adminState').textContent = unlocked ? 'Unlocked · ' + mmss(s.ad) : s.al > 0 ? 'PIN locked ' + s.al + ' s' : 'Locked';
+  $('adminLocked').classList.toggle('hidden', unlocked); $('adminOpen').classList.toggle('hidden', !unlocked);
+  $('pinWarn').classList.toggle('hidden', !(unlocked && s.dp));
+  if (unlocked && !was) { buildTabs(); loadAll().then(renderAdmin); }
+  if (!unlocked && was) { cfgVals = {}; $('adminForm').replaceChildren(); }
+  if (on && has && !diagBusy && Date.now() - lastDiagAt > 5000) refreshDiag();
+}
+let lastDiagAt = 0;
+async function refreshDiag() {
+  if (!link || !link.connected || !link.cfg || diagBusy || link.hasCfg === false) return;
+  diagBusy = true; lastDiagAt = Date.now();
+  try {
+    const d = await link.cfg(7), up = st ? st.up : 0, fc = d.fc || [0, 0, 0, 0];
+    const tile = (k, v, sub) => el('div', { class: 'tile' }, el('div', { class: 'k' }, k), el('div', { class: 'v num' }, v), el('div', { class: 's' }, sub || ''));
+    $('diag').replaceChildren(
+      tile('Firmware', d.fw, 'reset: ' + d.rr), tile('Uptime', fmtDur(up), 'since power-up'),
+      tile('Sensor', d.sa < 3000 ? 'OK' : 'LOST', 'last reading ' + (d.sa / 1000).toFixed(1) + ' s ago'),
+      tile('Free memory', Math.round(d.h / 1024) + ' kB', d.br ? 'GPIO35 ' + d.br.toFixed(2) + ' V' : 'battery pin not read'),
+      tile('Faults', fc.reduce((a, b) => a + b, 0), 'sensor ' + fc[0] + ' · over ' + fc[1] + ' · cold ' + fc[2] + ' · fan ' + fc[3]),
+      tile('Last fault', FAULT_NAMES[d.lf] || '—', 'history is kept when off'));
+  } catch (e) { console.warn('diag', e); }
+  finally { diagBusy = false; }
+}
+async function loadGroup(g) {
+  const d = await link.cfg(g);
+  for (const [k, v, lo, hi] of d.p || []) cfgVals[k] = { v, lo, hi, g };
+  if (d.nm !== undefined) cfgName = d.nm;
+}
+async function loadAll() {
+  if (cfgBusy) return; cfgBusy = true;
+  try { for (let g = 0; g <= 6; g++) await loadGroup(g); }
+  catch (e) { toast('Could not read settings: ' + (e && e.message ? e.message : e), 'err'); }
+  finally { cfgBusy = false; }
+}
+function buildTabs() {
+  const box = $('tabs'); box.replaceChildren();
+  for (const [id, name] of GROUPS) box.append(el('button', { type: 'button', role: 'tab', class: id === adminTab ? 'sel' : '', onclick: () => { adminTab = id; buildTabs(); renderAdmin(); } }, name));
+}
+// Sends one admin command, waits for the device, then re-reads the group so the page shows what the device really holds.
+async function adminCmd(cmd, group) {
+  if (!(await send(cmd))) return false;
+  await sleep(350);
+  try { if (group !== undefined) await loadGroup(group); } catch (e) { /* shown by the next refresh */ }
+  refreshStatus(); return true;
+}
+async function setParam(key, val) {
+  const c = cfgVals[key], ui = UI[key];
+  if (!c) return;
+  if (!(val >= c.lo && val <= c.hi)) { toast(ui[0] + ': allowed ' + nf(c.lo) + ' to ' + nf(c.hi), 'err'); renderAdmin(); return; }
+  if (/risk/.test(ui[4] || '') && !confirm('Change "' + ui[0] + '" to ' + nf(val) + '?\n\nThis affects how ThermoX protects itself and the hardware.')) { renderAdmin(); return; }
+  if (!(await adminCmd('C' + key + '=' + nf(val), c.g))) { renderAdmin(); return; }
+  const got = cfgVals[key].v;
+  if (Math.abs(got - val) < 1e-6) toast(ui[0] + ' = ' + nf(got) + ' ' + ui[1], 'ok');
+  else toast(ui[0] + ' was refused (conflicts with another setting, or the Peltier is running). See Activity.', 'err');
+  if (c.g === 0 || c.g === 1) { await loadGroup(0).catch(() => {}); await loadGroup(1).catch(() => {}); }
+  renderAdmin();
+}
+function paramRow(key) {
+  const c = cfgVals[key], ui = UI[key]; if (!c) return null;
+  const kind = ui[4] || '';
+  let ctl;
+  if (/bool/.test(kind)) {
+    const inp = el('input', { type: 'checkbox', 'aria-label': ui[0], onchange: () => setParam(key, inp.checked ? 1 : 0) });
+    inp.checked = c.v >= 0.5; ctl = el('label', { class: 'sw' }, inp, el('i'));
+  } else if (/slider/.test(kind)) {
+    const out = el('span', { class: 'unit num' }, nf(c.v) + ' ' + ui[1]);
+    const inp = el('input', { type: 'range', min: c.lo, max: c.hi, step: ui[2], value: c.v, 'aria-label': ui[0],
+      oninput: () => { out.textContent = inp.value + ' ' + ui[1]; }, onchange: () => setParam(key, +inp.value) });
+    ctl = el('span', { class: 'actl' }, inp, out);
+  } else {
+    const inp = el('input', { type: 'number', inputmode: 'decimal', min: c.lo, max: c.hi, step: ui[2], value: nf(c.v), 'aria-label': ui[0],
+      onchange: () => { const v = parseFloat(inp.value); if (isNaN(v)) renderAdmin(); else setParam(key, v); } });
+    ctl = el('span', { class: 'actl' }, inp, el('span', { class: 'unit' }, ui[1]));
+  }
+  const hint = ((ui[3] ? ui[3] + ' ' : '') + (/bool/.test(kind) ? '' : '(' + nf(c.lo) + '–' + nf(c.hi) + ')')).trim();
+  return el('div', { class: 'arow' }, el('div', { class: 'atxt' }, el('b', {}, ui[0]), el('small', {}, hint)), ctl);
+}
+function renderAdmin() {
+  const f = $('adminForm'); if (!unlocked) { f.replaceChildren(); return; }
+  f.replaceChildren();
+  if (adminTab === 't') return renderTools(f);
+  if (!Object.keys(cfgVals).length) { f.append(el('p', { class: 'note' }, 'Reading settings…')); return; }
+  for (const key of Object.keys(UI)) if (cfgVals[key] && cfgVals[key].g === adminTab) f.append(paramRow(key));
+  if (adminTab === 2) {
+    const sel = el('select', { 'aria-label': 'Fan test length' }, ...[3, 5, 10, 20].map(n => el('option', { value: n }, n + ' s')));
+    f.append(el('div', { class: 'sect' }, 'Test the fan'),
+      el('p', { class: 'note', style: 'margin-top:0' }, 'Spins the fan at full speed, only while ThermoX is idle. Watch the RPM in the Fan card.'),
+      el('div', { class: 'inline' }, sel, el('button', { type: 'button', class: 'btn small', onclick: async () => { await adminCmd('TF' + sel.value); toast('Fan test started', 'ok'); } }, 'Test fan')));
+  }
+  if (adminTab === 4) {
+    const v = el('input', { type: 'number', inputmode: 'decimal', step: '0.01', min: '1', placeholder: 'Pack voltage in V', 'aria-label': 'Measured pack voltage' });
+    f.append(el('div', { class: 'sect' }, 'Calibrate the gauge'),
+      el('p', { class: 'note', style: 'margin-top:0' }, 'Turn battery sensing on, measure the whole pack with a multimeter, type the reading here and press Calibrate. The divider ratio is worked out from it.'),
+      el('div', { class: 'inline' }, v, el('button', { type: 'button', class: 'btn small', onclick: async () => {
+        const x = parseFloat(v.value); if (!(x > 1)) { toast('Type the measured pack voltage', 'err'); return; }
+        const before = cfgVals.bd ? cfgVals.bd.v : 0;
+        await adminCmd('Ccal=' + nf(x), 4);
+        if (cfgVals.bd && cfgVals.bd.v !== before) toast('Divider ratio set to ' + nf(cfgVals.bd.v), 'ok'); else toast('Not calibrated: battery sensing must be on and a reading must exist (wait a few seconds).', 'err');
+        renderAdmin(); } }, 'Calibrate')));
+  }
+  if (adminTab === 6) {
+    const nm = el('input', { type: 'text', maxlength: '15', value: cfgName, 'aria-label': 'Device name' });
+    const p1 = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'New PIN (4–8 digits)', autocomplete: 'off', 'aria-label': 'New PIN' });
+    const p2 = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Repeat new PIN', autocomplete: 'off', 'aria-label': 'Repeat new PIN' });
+    f.append(el('div', { class: 'sect' }, 'Device name'),
+      el('p', { class: 'note', style: 'margin-top:0' }, 'Letters, digits, space, - and _ (up to 15). Applies after a reboot; choose the new name when connecting.'),
+      el('div', { class: 'inline' }, nm, el('button', { type: 'button', class: 'btn small', onclick: async () => {
+        if (!/^[A-Za-z0-9 _-]{1,15}$/.test(nm.value)) { toast('Name: 1–15 letters, digits, space, - or _', 'err'); return; }
+        await adminCmd('Cnm=' + nm.value, 6); toast(cfgName === nm.value ? 'Name saved. Reboot to use it.' : 'Name was refused', cfgName === nm.value ? 'ok' : 'err'); renderAdmin(); } }, 'Save name')),
+      el('div', { class: 'sect' }, 'Admin PIN'),
+      el('div', { class: 'inline' }, p1, p2, el('button', { type: 'button', class: 'btn small', onclick: async () => {
+        if (!/^\d{4,8}$/.test(p1.value)) { toast('PIN: 4 to 8 digits', 'err'); return; }
+        if (p1.value !== p2.value) { toast('The two PINs differ', 'err'); return; }
+        await adminCmd('Cpin=' + p1.value); toast('PIN change sent. Check Activity.', 'ok'); p1.value = p2.value = ''; } }, 'Change PIN')));
+  }
+}
+function renderTools(f) {
+  const file = el('input', { type: 'file', accept: 'application/json,.json', class: 'hidden', onchange: () => importCfg(file) });
+  f.append(
+    el('div', { class: 'sect' }, 'Backup'),
+    el('p', { class: 'note', style: 'margin-top:0' }, 'Save all settings to a file, or load them into this or another ThermoX. The PIN is not included.'),
+    el('div', { class: 'btnrow' }, el('button', { type: 'button', class: 'btn ghost small', onclick: exportCfg }, 'Export settings'),
+      el('button', { type: 'button', class: 'btn ghost small', onclick: () => file.click() }, 'Import settings'), file),
+    el('div', { class: 'sect' }, 'Device'),
+    el('div', { class: 'btnrow' },
+      el('button', { type: 'button', class: 'btn warn small', onclick: async () => {
+        if (!confirm('Reset every setting to the factory values? (The PIN stays. The Peltier must be off.)')) return;
+        await adminCmd('RD'); await loadAll(); renderAdmin(); toast('Reset sent. Check Activity.', 'ok'); } }, 'Factory defaults'),
+      el('button', { type: 'button', class: 'btn ghost small', onclick: async () => { if (confirm('Clear the fault history?')) { await adminCmd('RF'); refreshDiag(); } } }, 'Clear fault history'),
+      el('button', { type: 'button', class: 'btn ghost small', onclick: async () => { if (confirm('Reboot ThermoX? The Peltier stops and the phone disconnects.')) await adminCmd('RB'); } }, 'Reboot')),
+    el('div', { class: 'btnrow' }, el('button', { type: 'button', class: 'btn stop small', onclick: async () => { await send('L'); await sleep(300); refreshStatus(); } }, 'Lock admin now')));
+}
+function exportCfg() {
+  const params = {}; for (const [k, o] of Object.entries(cfgVals)) params[k] = o.v;
+  const blob = new Blob([JSON.stringify({ thermox: 1, name: cfgName, params }, null, 2)], { type: 'application/json' });
+  const a = el('a', { href: URL.createObjectURL(blob), download: 'thermox-settings.json' });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast('Settings saved to a file', 'ok');
+}
+async function importCfg(input) {
+  const f = input.files[0]; input.value = ''; if (!f) return;
+  let j; try { j = JSON.parse(await f.text()); } catch (e) { toast('Not a settings file', 'err'); return; }
+  const params = j && j.thermox === 1 && j.params; if (!params) { toast('Not a ThermoX settings file', 'err'); return; }
+  const keys = Object.keys(params).filter(k => cfgVals[k] && typeof params[k] === 'number');
+  if (!keys.length) { toast('Nothing to import', 'err'); return; }
+  if (!confirm('Load ' + keys.length + ' settings from "' + f.name + '"? This replaces the current safety and hardware settings.')) return;
+  toast('Importing…');
+  let todo = keys.filter(k => Math.abs(cfgVals[k].v - params[k]) > 1e-6);
+  for (let pass = 0; pass < 2 && todo.length; pass++) {      // 2nd pass: a value may depend on another one set later
+    for (const k of todo) { await send('C' + k + '=' + nf(params[k])); await sleep(150); }
+    await sleep(300); await loadAll();
+    todo = todo.filter(k => Math.abs(cfgVals[k].v - params[k]) > 1e-6);
+  }
+  if (typeof j.name === 'string' && j.name && j.name !== cfgName) { await send('Cnm=' + j.name); await sleep(300); await loadGroup(6); }
+  renderAdmin(); refreshStatus();
+  if (todo.length) toast(todo.length + ' settings were refused: ' + todo.join(', '), 'err'); else toast('Settings imported', 'ok');
+}
+async function unlock() {
+  const pin = $('pinIn').value.trim();
+  if (!/^\d{4,8}$/.test(pin)) { toast('The PIN is 4 to 8 digits', 'err'); return; }
+  $('unlockBtn').disabled = true;
+  try {
+    await send('U' + pin); await sleep(450); await refreshStatus();
+    if (st && st.ad > 0) { $('pinIn').value = ''; toast('Admin unlocked', 'ok'); }
+    else toast(st && st.al > 0 ? 'Too many wrong PINs. Wait ' + st.al + ' s.' : 'Wrong PIN', 'err');
+  } finally { $('unlockBtn').disabled = !(link && link.connected); }
+}
+$('unlockBtn').addEventListener('click', unlock);
+$('pinIn').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
 // If notifications stop arriving, read the status anyway.
 setInterval(() => { if (link && link.connected && Date.now() - lastStatusAt > 2500) refreshStatus(); }, 1000);
 window.addEventListener('resize', drawChart);
