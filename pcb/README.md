@@ -49,3 +49,33 @@ sensing **off** (`ENABLE_BATTERY_SENSE = false`) until the board is built. Then 
 
 The board has not been made yet. Print page 1, place the ESP32 and the headers on the paper and check that the pins
 line up before etching.
+
+# Power board (battery or USB-C, plug and play)
+
+`thermox_power_60x60.pdf` (60 x 60 mm square) and `thermox_power_round60.pdf` (60 mm round) are the same circuit. The
+board takes the 3S battery and a USB-C PD trigger board (set to 12 V). An ON-OFF-ON switch on the case picks one of
+them. A 10 A fuse protects both, and C1 (2200 uF) smooths the Peltier PWM. The board feeds the BTS7960 power
+terminals, the LM2596 and the controller board. The pages are the same as for the controller board: copper at
+actual size, parts side and wiring.
+
+| Ref | Pins | Goes to |
+|---|---|---|
+| J1 BATTERY | BAT+, BAT- | Battery after the BMS (P+, P-) |
+| J2 USB-C 12V | +12V, GND | PD trigger board output, set to 12 V (measure first) |
+| J3 SWITCH | BATT, COM, USB | ON-OFF-ON toggle, 10 A DC: middle lug = COM. Middle position = off |
+| J4 BTS7960 | B+, B- | BTS7960 power terminals (thick wire) |
+| J5 LM2596 | IN+, GND, OUT+ | LM2596 IN+, IN- (= OUT-), OUT+ (set to 5.0 V first) |
+| J7 TO CONTROLLER | VBAT, 5V, GND | Controller board J7, same names (pin 1 = VBAT) |
+
+- Only one source at a time: never connect the trigger board straight to the battery. The trigger board does not
+  charge the battery.
+- On USB-C, limit the Peltier power with the phone page slider: 60 % with a 12 V 5 A charger and 5 A cable, 40 % with
+  12 V 3 A. Never set the trigger board to 15 V or 20 V.
+- F1 is a 5x20 mm PCB fuse holder (BLX-A type, pins 22.6 mm apart) with a 10 A slow-blow fuse. If your holder's pins
+  are spaced differently, solder an inline fuse holder's two wires into the F1 holes instead.
+- The wide tracks carry up to 7 A: cover them with solder after etching.
+
+`python3 make_power_pcb.py` rebuilds both PDFs. It checks:
+- the same copper rules as the controller board;
+- that the ground path for the Peltier current (battery -, USB-C -, BTS7960 B-, C1 -) is at least 3.2 mm wide;
+- that no part bodies overlap each other or the mounting holes, and all bodies stay on the board.
