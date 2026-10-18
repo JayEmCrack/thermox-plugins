@@ -25,7 +25,7 @@ Each PDF has three pages:
 
 | Ref | Pins | Goes to |
 |---|---|---|
-| J7 POWER | VBAT, 5V, GND | Battery + (after BMS/fuse) and LM2596 IN+; LM2596 OUT+ (set to 5.0 V); battery - |
+| J7 POWER | VBAT, 5V, GND | Power board J7 (same names, see below) |
 | J1 FAN | GND, PWM, +12V, FG | SUNON fan (PWM = GPIO23, FG = GPIO34 with R1 10k pull-up) |
 | J2 / J3 | BTN, GND | Button 1 (GPIO32) / Button 2 (GPIO33) |
 | J4 BTS A | R_EN, RPWM, LPWM | BTS7960 (GPIO25, GPIO26, GPIO27) |
@@ -33,8 +33,8 @@ Each PDF has three pages:
 | J6 TEMP | 5V, GND, DQ | DS18B20 (DQ = GPIO14 with R2 4.7k pull-up to 3.3 V) |
 | J8 OLED | SCL, SDA, VCC, GND | 1.5" SH1107 OLED (GPIO22, GPIO21, 3.3 V) |
 
-The Peltier current does **not** go through this board. Connect BTS7960 B+/B- straight to the pack with thick wire
-and a 10 A fuse, and M+/M- straight to the Peltier.
+The Peltier current does **not** go through this board. BTS7960 B+/B- go to the power board J4 with thick wire, and
+M+/M- straight to the Peltier.
 
 ## Battery gauge (set aside for now)
 R3 100k, R4 22k and C1 100 nF divide the 3S pack (12.6 V max) to about 2.3 V on GPIO35. The firmware keeps battery
@@ -50,32 +50,45 @@ sensing **off** (`ENABLE_BATTERY_SENSE = false`) until the board is built. Then 
 The board has not been made yet. Print page 1, place the ESP32 and the headers on the paper and check that the pins
 line up before etching.
 
-# Power board (battery or USB-C, plug and play)
+# Power board (all parts on the board, plug and play)
 
 `thermox_power_60x60.pdf` (60 x 60 mm square) and `thermox_power_round60.pdf` (60 mm round) are the same circuit. The
-board takes the 3S battery and a USB-C PD trigger board (set to 12 V). An ON-OFF-ON switch on the case picks one of
-them. A 10 A fuse protects both, and C1 (2200 uF) smooths the Peltier PWM. The board feeds the BTS7960 power
-terminals, the LM2596 and the controller board. The pages are the same as for the controller board: copper at
-actual size, parts side and wiring.
+USB-C trigger board, the source switch and the 5 V regulator sit on the board itself. Only the battery, the BTS7960
+and the controller board are wired to it. The pages are the same as for the controller board: copper at actual size,
+parts side and wiring.
 
-| Ref | Pins | Goes to |
+| Ref | Part | Notes |
 |---|---|---|
+| M1 | USB-C PD/QC trigger board (100W 5A type) | Stuck on the dashed 32 x 16 mm area with foam tape, USB-C at the board edge. Set it to 12 V and measure it first, then solder 2 short 1 mm2 wires from its output to the M1 + and - pads |
+| SW1 | ON-OFF-ON mini toggle (MTS-103), lugs 4.7 mm apart | BATT = battery, middle = off, USB = trigger board. The holes also take 3 wires to a switch on the case |
+| F1 | 5x20 mm fuse holder (BLX-A, pins 22.6 mm apart) + 10 A slow-blow fuse | Protects both sources |
+| C1 | 2200 uF 25 V, low ESR | Smooths the Peltier PWM so the charger does not cut out |
+| U1 | K7805-1000R3 or R-78E5.0-1.0 (5 V 1 A switching, 7805 pins) | Replaces the LM2596 module. Pin 1 (IN) in the square pad. C2 10 uF on its input, C3 22 uF on its output |
+| LED1, R1 | LED + 2.2 k | Lights when there is power after the fuse |
 | J1 BATTERY | BAT+, BAT- | Battery after the BMS (P+, P-) |
-| J2 USB-C 12V | +12V, GND | PD trigger board output, set to 12 V (measure first) |
-| J3 SWITCH | BATT, COM, USB | ON-OFF-ON toggle, 10 A DC: middle lug = COM. Middle position = off |
 | J4 BTS7960 | B+, B- | BTS7960 power terminals (thick wire) |
-| J5 LM2596 | IN+, GND, OUT+ | LM2596 IN+, IN- (= OUT-), OUT+ (set to 5.0 V first) |
 | J7 TO CONTROLLER | VBAT, 5V, GND | Controller board J7, same names (pin 1 = VBAT) |
 
 - Only one source at a time: never connect the trigger board straight to the battery. The trigger board does not
   charge the battery.
+- Set the trigger board to 12 V and check it with a meter before you solder its wires. Never 15 V or 20 V.
 - On USB-C, limit the Peltier power with the phone page slider: 60 % with a 12 V 5 A charger and 5 A cable, 40 % with
-  12 V 3 A. Never set the trigger board to 15 V or 20 V.
-- F1 is a 5x20 mm PCB fuse holder (BLX-A type, pins 22.6 mm apart) with a 10 A slow-blow fuse. If your holder's pins
-  are spaced differently, solder an inline fuse holder's two wires into the F1 holes instead.
+  12 V 3 A.
+- SW1 (MTS-103) is rated 6 A at 125 V AC. On battery, keep the Peltier power at 80 % or less, or wire a 10 A toggle
+  into the SW1 holes. Move the switch only while the Peltier is stopped.
+- U1 must be a switching regulator; a plain LM7805 would get too hot. The old LM2596 module still works: wire its IN+,
+  IN- (= OUT-) and OUT+ to the U1 IN, GND and 5V holes.
+- Trigger board sizes differ between makers. The area fits the ZY12PDN type (about 31.5 x 15 mm). Lay your board on
+  the printed parts page before etching.
 - The wide tracks carry up to 7 A: cover them with solder after etching.
 
 `python3 make_power_pcb.py` rebuilds both PDFs. It checks:
 - the same copper rules as the controller board;
-- that the ground path for the Peltier current (battery -, USB-C -, BTS7960 B-, C1 -) is at least 3.2 mm wide;
-- that no part bodies overlap each other or the mounting holes, and all bodies stay on the board.
+- that the ground path for the Peltier current (battery -, trigger board -, BTS7960 B-, C1 -) is at least 3.2 mm wide;
+- that no part bodies overlap each other or the mounting holes, all bodies stay on the board, and no body covers
+  another part's pads.
+
+Part sizes used: R-78E5.0-1.0 is an 11.6 x 8.5 mm SIP-3 with 2.54 mm pin pitch, pin 1 +Vin, 2 GND, 3 +Vout (RECOM;
+KiCad footprint `Converter_DCDC_RECOM_R-78E-0.5_THT`). The board keeps 6.5 mm free on both sides of the U1 pins, so
+the K7805-1000R3 fits as well. MTS-103 lugs are 0.185" (4.7 mm) apart, body about 13 x 8 mm. ZY12PDN is about
+30-31.5 x 15 mm.
