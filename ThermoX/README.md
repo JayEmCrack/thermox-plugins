@@ -18,10 +18,10 @@ Libraries: OneWire, DallasTemperature, U8g2.
   after power-up. Nothing starts by itself: a run still needs a button press or Start on the phone.
 - **Low-battery cutoff** works only with battery sensing on (`ENABLE_BATTERY_SENSE = true` and the GPIO35 divider).
   If a cell stays below `LOW_BATT_CUTOFF_V` (3.30 V) for 5 s, the Peltier stops, the OLED and phone show
-  LOW BATT, and new runs are refused until the cell is back above `LOW_BATT_RESUME_V` (3.60 V). Set `BATT_CELLS`
-  to the number of cells in series and choose `BATT_DIVIDER` so GPIO35 stays below about 3.1 V
-  (1S: 100k/100k = 2.0; 3S 12.6 V: e.g. 100k/22k, divider 5.55). This is a second line of defence: still use a
-  protected pack or BMS.
+  LOW BATT, and new runs are refused until the cell is back above `LOW_BATT_RESUME_V` (3.60 V). `BATT_CELLS = 3`
+  and `BATT_DIVIDER = 5.545` are already set for the 3S pack and the 100k/22k divider on the one-board PCB
+  (`pcb/thermox_onepcb_*`), so only `ENABLE_BATTERY_SENSE` has to change. For a 1S cell use 1 and 2.0 (100k/100k).
+  Keep GPIO35 below about 3.1 V. This is a second line of defence: still use a protected pack or BMS.
 
 ## Compile check (GitHub Actions)
 `.github/workflows/compile-firmware.yml` compiles `ThermoX/` with ESP32 core 3.3.12 on every push and pull request

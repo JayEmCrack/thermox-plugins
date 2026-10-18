@@ -1,3 +1,35 @@
+# ThermoX one-board PCB (recommended): everything on one 82 mm round board
+
+`thermox_onepcb_round82_rows25.4.pdf` and `thermox_onepcb_round82_rows22.86.pdf` put the controller and the power
+circuit on one single-sided board. It fits the 85 mm battery bay of the round bottles and replaces the controller
+board, the power board and the LM2596 module. Pick the PDF that matches your ESP32: centre of a left pin to centre
+of the right pin in the same row, 25.4 mm or 22.86 mm.
+
+| Ref | Part | Notes |
+|---|---|---|
+| U1 | ESP32 DevKit 30-pin on two 1x15 female headers (8.5 mm) | USB end at the board edge. Plugged in last |
+| M1 | USB-C PD/QC trigger board, max 32 x 16 x 7 mm | Lies under the ESP32 on thin foam tape, USB-C at the board edge next to the ESP32 USB. Set it to 12 V and measure first; its 2 output wires (1 mm2) run out under the antenna end to the M1 + and - pads |
+| SW1 | ON-OFF-ON mini toggle (MTS-103) | BATT = battery, middle = off, USB = trigger board. The holes also take 3 wires to a switch on the case |
+| F1, C1 | 5x20 fuse holder + 10 A slow-blow, 2200 uF 25 V | As on the power board |
+| U2, C2, C3 | K7805-1000R3 or R-78E5.0-1.0, 10 uF, 22 uF | 5 V for the ESP32 and the BTS7960 logic. Pin 1 (IN) in the square pad |
+| R1, R2 | 10k fan tach pull-up, 4.7k DS18B20 pull-up | Lie flat under the ESP32 |
+| R3, R4, C4 | 100k, 22k, 100 nF | Battery gauge on GPIO35, under the ESP32 |
+| JP1 | Wire link | Carries 3.3 V to the OLED header (bare wire on the parts side) |
+| J1 BATTERY / J2 BTS7960 | Screw terminals | Battery after the BMS / BTS7960 B+ and B- |
+| J3 FAN, J4 OLED, J5/J6 buttons, J7/J8 BTS7960 control, J9 TEMP | 2.54 mm headers | Same pins as the firmware (GPIO assignments unchanged) |
+
+- No copper sits under the ESP32 antenna, for better Bluetooth range.
+- The battery gauge is on the board. `ThermoX.ino` already has `BATT_CELLS = 3` and `BATT_DIVIDER = 5.545`; set
+  `ENABLE_BATTERY_SENSE = true` to show battery % on the OLED and the phone. On USB-C power it shows the USB
+  voltage, not the battery.
+- All the power-board notes below apply: one source at a time, trigger board at 12 V only, the USB-C power limit,
+  the MTS-103 rating and the switching regulator.
+
+`python3 make_thermox_pcb.py` rebuilds both PDFs and checks them: the copper rules of the power board, all nets
+connected (the wire link counts), no copper under the antenna, a ground path of at least 3.2 mm for the Peltier
+current, and no part bodies overlapping (the low parts under the ESP32 are allowed there). The board has not been
+made yet: print page 1 and check the ESP32, the trigger board, the fuse holder and the switch on the paper first.
+
 # ThermoX controller PCB (home-etch, single-sided)
 
 A carrier board for the 30-pin ESP32 DevKit with every ThermoX connection. Through-hole only, one copper layer
