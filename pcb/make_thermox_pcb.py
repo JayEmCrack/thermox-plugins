@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """ThermoX one-board PCB: controller and power on a single 82 mm round board.
 
-The ESP32, the USB-C trigger board, the source switch, the fuse, the bulk capacitor, the 5 V regulator, the battery
-gauge and every connector sit on one single-sided, through-hole board for home etching. It fits the 85 mm battery
-bay of the round bottles and replaces the controller board, the power board and the LM2596 module.
+The ESP32, the USB-C trigger board, the source switch, the fuse, the bulk capacitor, the battery gauge and every
+connector sit on one single-sided, through-hole board for home etching. It fits the 85 mm battery bay of the round
+bottles and replaces the controller board and the power board. The LM2596S 5 V buck module is wired to U2.
 
 To keep it this small, the trigger board (M1) lies flat under the ESP32, between its two female headers, with its
 USB-C at the board edge. The ESP32 is plugged in last.
@@ -39,7 +39,7 @@ TB = (3.0, 1.3)      # 5.08 mm screw terminal pad (diameter, drill)
 FUSE = (3.4, 1.5)    # 5x20 mm PCB fuse holder (BLX-A type), pins 22.6 mm apart
 WIRE = (3.4, 1.5)    # trigger board output wire (1 mm2)
 SWP = (4.0, 2.2)     # mini toggle switch lug (MTS-103 type), lugs 4.7 mm apart
-HDR = (1.9, 1.0)     # 2.54 mm header, ESP32 socket, regulator pins
+HDR = (1.9, 1.0)     # 2.54 mm header, ESP32 socket
 SMALL = (1.9, 0.8)   # resistors, small capacitors
 CAP = (2.2, 1.0)     # C1 radial electrolytic
 HOLE_R = 1.6         # M3 mounting hole
@@ -103,15 +103,6 @@ def design(spacing):
         body = box(cx - 4.0, cy - 6.5, cx + 4.0, cy + 6.5) if len(set(xs)) == 1 else box(cx - 6.5, cy - 4.0, cx + 6.5, cy + 4.0)
         parts.append(dict(ref="SW1", kind="sw", label="ON-OFF-ON", body=body, pins=pins))
 
-    def regulator(pins):
-        """U2, 3-pin 5 V switching regulator (K7805-1000R3 / R-78E5.0-1.0, same pins as a 7805): pins = IN, GND, 5V.
-        The area kept free is 6.5 mm on both sides of the pins, so either module fits."""
-        for k, (x, y, name, net) in enumerate(pins):
-            pad(x, y, net, "U2", name, HDR, square=(k == 0))
-        cx, cy = pins[1][0], pins[1][1]
-        body = box(cx - 5.8, cy - 6.5, cx + 5.8, cy + 6.5) if pins[0][1] == pins[2][1] else box(cx - 6.5, cy - 5.8, cx + 6.5, cy + 5.8)
-        parts.append(dict(ref="U2", kind="reg", label="5V 1A", body=body, pins=pins))
-
     def fuse(a, b):
         """F1 fuse holder, COM at a and BUS at b."""
         assert abs(Point(a).distance(Point(b)) - 22.6) < 1e-6
@@ -169,18 +160,14 @@ def design(spacing):
     tr("COM", W_HI, (62.0, 56.7), (57.0, 56.7), (54.0, 62.5), (51.6, 67.0))
     tr("BUS", W_HI, (29.0, 67.0), (19.48, 66.0))
     tr("BUS", W_C, (19.48, 66.0), (12.0, 56.5))
-    # BUS on to the fan and, through the gap above the ESP32 pins, to the regulator on the right
+    # BUS on to the fan, the 5 V module and, through the gap above the ESP32 pins, to the battery gauge
     tr("BUS", W_PWR, (19.48, 66.0), (16.0, 61.0), (16.0, 42.52), (LX - 4.25, 42.52))
     tr("BUS", W_PWR, (16.0, 49.1), (40.0, 49.1))
 
-    # ---- U2 5 V regulator with C2 (in) and C3 (out), left of the ESP32
-    regulator([(8.0, 40.54, "IN", "BUS"), (8.0, 38.0, "GND", "GND"), (8.0, 35.46, "5V", "5V")])
-    cap("C2", "10uF", (4.5, 48.07), (4.5, 45.53), "BUS", 2.75, SMALL)
-    cap("C3", "22uF", (5.5, 29.27), (5.5, 26.73), "5V", 2.75, SMALL)
-    tr("BUS", W_PWR, (16.0, 46.0), (10.0, 46.0), (8.0, 44.0), (8.0, 40.54))
-    tr("BUS", W_PWR, (10.0, 46.0), (6.0, 48.07), (4.5, 48.07))
-    tr("5V", W_PWR, (8.0, 35.46), (8.0, 32.0), (11.0, 29.0), (11.0, 21.0), (13.82, row(10)))
-    tr("5V", W_PWR, (8.0, 32.0), (5.5, 29.27))
+    # ---- U2: wires to the LM2596S buck module (5 V), left of the ESP32. Solder the wires, or fit a KF301-3P.
+    terminal("U2", "LM2596 5V", [(8.0, 43.08, "IN+", "BUS"), (8.0, 38.0, "GND", "GND"), (8.0, 32.92, "OUT+", "5V")], "left")
+    tr("BUS", W_PWR, (16.0, 46.0), (10.0, 46.0), (8.0, 44.5), (8.0, 43.08))
+    tr("5V", W_PWR, (8.0, 32.92), (11.0, 29.5), (11.0, 21.0), (13.82, row(10)))
 
     # ---- left side: buttons, BTS7960 control, temperature, fan (signal column x = LX - 4.25)
     SX, GX = LX - 4.25, LX - 6.79
@@ -340,8 +327,8 @@ def copper_page(pdf, d, r):
         % d["spacing"],
         "Toner transfer or UV film: use this page as it is (do not mirror). Copper is on the bottom of the board.",
         "Check: the small text 'THERMOX' looks mirrored on the paper and reads normally on the etched copper side.",
-        "Drill: 2.2 mm SW1, 1.5 mm F1 and M1 wire pads, 1.3 mm screw terminals, 1.0 mm C1, ESP32 socket, headers",
-        "and U2, 0.8 mm resistors and small capacitors, 3.2 mm mounting holes. Cover the wide tracks with solder.",
+        "Drill: 2.2 mm SW1, 1.5 mm F1 and M1 wire pads, 1.3 mm screw terminals and U2, 1.0 mm C1, ESP32 socket and",
+        "headers, 0.8 mm resistors and C4, 3.2 mm mounting holes. Cover the wide tracks with solder.",
     ])
     for k, cx in enumerate((15.0, 112.0)):
         cy = 110.0
@@ -364,7 +351,7 @@ def copper_page(pdf, d, r):
 
 def place_label(text, body, d, taken, order, fs=7.0):
     """Board-mm position for a part label that does not cover another body, a pad, a hole or an earlier label."""
-    w, h = 0.36 * fs / 7 * 2.1 * len(text), 1.5 * fs / 7
+    w, h = 0.36 * fs / 7 * 2.45 * len(text), 1.5 * fs / 7
     minx, miny, maxx, maxy = body.bounds
     cx, cy = (minx + maxx) / 2, (miny + maxy) / 2
     cand = {"above": [(x, maxy + 0.4) for x in (cx - w / 2, minx, maxx - w)],
@@ -381,9 +368,11 @@ def place_label(text, body, d, taken, order, fs=7.0):
             if inside.contains(rect) and not any(rect.intersects(b) for b in blockers):
                 taken.append(rect)
                 return x0, y0
-    x0, y0 = cand[order[0]][0]
-    taken.append(box(x0, y0, x0 + w, y0 + h))
-    return x0, y0
+    # no free spot: take the one that covers the least of the other labels and parts
+    best = min((c for side in order for c in cand[side]),
+               key=lambda c: sum(box(c[0], c[1], c[0] + w, c[1] + h).intersection(b).area for b in blockers))
+    taken.append(box(best[0], best[1], best[0] + w, best[1] + h))
+    return best
 
 
 COLORS = {"tb": "#2b8a3e", "hdr": "#2b8a3e", "fuse": "#1f6feb", "cap": "#7a3e00", "cer": "#7a3e00", "res": "#7a3e00",
@@ -393,7 +382,7 @@ COLORS = {"tb": "#2b8a3e", "hdr": "#2b8a3e", "fuse": "#1f6feb", "cap": "#7a3e00"
 def parts_page(pdf, d, r):
     S = 2.0
     fig, ax = base.page(pdf, "ThermoX ONE BOARD: PARTS SIDE (top view, enlarged %g x)" % S, [
-        "Parts go on this side, copper is underneath (grey). Square pad = pin 1 (+ on C1-C3, IN on U2).",
+        "Parts go on this side, copper is underneath (grey). Square pad = pin 1 (+ on C1, IN+ on U2).",
         "Order: R1-R4 and C4 (they lie flat under the ESP32), M1 (dashed purple, under the ESP32), then the rest,",
         "the two 1x15 female headers for the ESP32 last. Plug the ESP32 in with its USB end at the board edge.",
         "M1: set it to 12 V and measure first. Stick it down with thin foam tape, USB-C at the edge, and run its 2 output",
@@ -458,6 +447,10 @@ def parts_page(pdf, d, r):
             ax.annotate("", xy=(ox + S * ax_, oy + S * ay), xytext=(ox + S * (ax_ + dx), oy + S * (ay + dy)),
                         arrowprops=dict(arrowstyle="->", color=color, lw=1.2))
             wire_side = {"left": "left", "right": "right", "bottom": "below", "top": "above"}[e]
+            if pt["ref"] == "U2":       # no room around it: name inside the body, along its left side
+                ax.text(ox + S * (minx + 1.2), oy + S * cy, "U2  LM2596 5V", fontsize=6.5, color=color, weight="bold",
+                        rotation=90, ha="center", va="center")
+                continue
             label(pt, "%s %s" % (pt["ref"], pt["label"]), color,
                   order=tuple(sd for sd in ("above", "below", "right", "left") if sd != wire_side) + (wire_side,))
         elif pt["kind"] == "hdr":
@@ -468,8 +461,6 @@ def parts_page(pdf, d, r):
                     ha="center", va="center", rotation=rot, linespacing=1.5)
         elif pt["kind"] == "sw":
             label(pt, "SW1 ON-OFF-ON", color, fs=6.5)
-        elif pt["kind"] == "reg":
-            label(pt, "U2 5V 1A", color, fs=6.5)
         elif pt["kind"] in ("cap", "cer", "res"):
             label(pt, "%s %s" % (pt["ref"], pt["label"]), color, fs=6.0 if pt["ref"] != "C1" else 6.5, bold=False)
             if pt["ref"] == "C1":
@@ -502,6 +493,8 @@ WIRING = [
     ("J7 BTS A", "BTS7960 control: R_EN, RPWM, LPWM."),
     ("J8 BTS B", "BTS7960 control: L_EN, GND, VCC (5 V logic). R_IS and L_IS stay open."),
     ("J9 TEMP", "DS18B20: DQ yellow, GND black, 5V red (R2 4.7k pulls DQ up to 3.3 V)."),
+    ("U2 LM2596 5V", "LM2596S buck module (24V/12V to 5V): IN+ to module IN+, GND to IN- (and OUT-), OUT+ to module OUT+. "
+                     "The module goes beside the board (foam tape); use 0.5 mm2 wires, 10-15 cm max."),
     ("M1 (on board)", "USB-C PD trigger board under the ESP32, USB-C at the board edge. Output + / - to the M1 pads."),
     ("SW1 (on board)", "ON-OFF-ON: BATT = battery, middle = off, USB = trigger board. Holes also take 3 wires to a case switch."),
 ]
@@ -513,12 +506,13 @@ NOTES = [
     "Battery gauge: R3 100k / R4 22k on GPIO35. ThermoX.ino already has BATT_CELLS = 3 and BATT_DIVIDER = 5.545; to show",
     "battery % set ENABLE_BATTERY_SENSE = true. On USB-C power it shows the USB voltage, not the battery.",
     "Fan tach (FG) is on GPIO34 as before. All other pins are the same as the firmware.",
+    "LM2596S module: if it has a trimmer, set it to 5.0 V with a meter BEFORE wiring it to U2. Never more than 5.2 V.",
     "Before the ESP32 goes in: check that BAT+, PD+, COM, BUS, 5V and 3V3 are not shorted to GND. Switch on BATT and",
     "measure 5.0 V between the ESP32 socket VIN and GND pins. Only then plug in the ESP32.",
 ]
 BOM = [
     "U1: ESP32 DevKit 30-pin + two 1x15 female headers (8.5 mm tall)    M1: USB-C PD/QC trigger board, max 32 x 16 x 7 mm",
-    "U2: K7805-1000R3 or R-78E5.0-1.0 (5 V 1 A, 7805 pins) + C2 10 uF 50 V + C3 22 uF 16 V (5 mm)",
+    "U2: LM2596S 5 V buck module (you have it) + 3 wires 0.5 mm2, or a 3-pin screw terminal 5.08 mm (KF301-3P)",
     "SW1: MTS-103 ON-OFF-ON    F1: BLX-A 5x20 holder + 10 A slow-blow fuse    C1: 2200 uF 25 V low ESR, max 13 mm",
     "R1 10k, R2 4.7k, R3 100k, R4 22k (1/4 W)    C4: 100 nF ceramic    J1, J2: 2-pin screw terminal 5.08 mm (KF301)",
     "J3 4-pin, J4 4-pin, J5/J6 2-pin, J7 3-pin, J8 3-pin, J9 3-pin male headers 2.54 mm    M3 screws: 3",

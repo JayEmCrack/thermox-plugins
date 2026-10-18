@@ -2,7 +2,7 @@
 
 `thermox_onepcb_round82_rows25.4.pdf` and `thermox_onepcb_round82_rows22.86.pdf` put the controller and the power
 circuit on one single-sided board. It fits the 85 mm battery bay of the round bottles and replaces the controller
-board, the power board and the LM2596 module. Pick the PDF that matches your ESP32: centre of a left pin to centre
+board and the power board. The LM2596S 5 V buck module is wired to U2. Pick the PDF that matches your ESP32: centre of a left pin to centre
 of the right pin in the same row, 25.4 mm or 22.86 mm.
 
 | Ref | Part | Notes |
@@ -11,7 +11,7 @@ of the right pin in the same row, 25.4 mm or 22.86 mm.
 | M1 | USB-C PD/QC trigger board, max 32 x 16 x 7 mm | Lies under the ESP32 on thin foam tape, USB-C at the board edge next to the ESP32 USB. Set it to 12 V and measure first; its 2 output wires (1 mm2) run out under the antenna end to the M1 + and - pads |
 | SW1 | ON-OFF-ON mini toggle (MTS-103) | BATT = battery, middle = off, USB = trigger board. The holes also take 3 wires to a switch on the case |
 | F1, C1 | 5x20 fuse holder + 10 A slow-blow, 2200 uF 25 V | As on the power board |
-| U2, C2, C3 | K7805-1000R3 or R-78E5.0-1.0, 10 uF, 22 uF | 5 V for the ESP32 and the BTS7960 logic. Pin 1 (IN) in the square pad |
+| U2 | Wire pads (or a KF301-3P) to the LM2596S 5 V buck module | IN+ to module IN+, GND to IN- (= OUT-), OUT+ to module OUT+. 5 V for the ESP32, the BTS7960 logic and the DS18B20. Set and measure 5.0 V before wiring it |
 | R1, R2 | 10k fan tach pull-up, 4.7k DS18B20 pull-up | Lie flat under the ESP32 |
 | R3, R4, C4 | 100k, 22k, 100 nF | Battery gauge on GPIO35, under the ESP32 |
 | JP1 | Wire link | Carries 3.3 V to the OLED header (bare wire on the parts side) |
