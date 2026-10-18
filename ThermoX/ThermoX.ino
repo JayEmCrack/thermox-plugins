@@ -42,14 +42,15 @@ constexpr uint8_t PIN_ONEWIRE  = 14;   // DS18B20 data (4.7k pull-up to 3.3V)
 constexpr uint8_t PIN_FAN_PWM  = 23;   // SUNON control (blue/PWM wire)
 constexpr uint8_t PIN_FAN_TACH = 34;   // SUNON FG (input-only pin: needs external pull-up)
 
-// Battery gauge: FUTURE ADDITION only. Leave false until the voltage divider is built
-// on GPIO35 (not in the current pin list; see README.md).
+// Battery gauge on GPIO35. Leave false until the board with the divider is built; then set it to true
+// to show battery % on the OLED and the phone and to turn on the low-battery cutoff.
+// The values below match the ThermoX one-board PCB: R3 100k / R4 22k from the 3S pack.
 constexpr bool    ENABLE_BATTERY_SENSE = false;
 constexpr uint8_t PIN_BATT_ADC = 35;
-constexpr float   BATT_DIVIDER = 2.0f;      // e.g. 100k/100k
-constexpr float   BATT_EMPTY_V = 3.3f;      // per cell, 1S Li-ion
+constexpr float   BATT_DIVIDER = 5.545f;    // (100k + 22k) / 22k
+constexpr float   BATT_EMPTY_V = 3.3f;      // per cell, Li-ion
 constexpr float   BATT_FULL_V  = 4.15f;
-constexpr uint8_t BATT_CELLS = 1;           // Li-ion cells in series (3S pack = 3); keep GPIO35 below ~3.1 V
+constexpr uint8_t BATT_CELLS = 3;           // Li-ion cells in series (3S pack); keep GPIO35 below ~3.1 V
 constexpr float   LOW_BATT_CUTOFF_V = 3.30f;  // per cell: Peltier stops below this...
 constexpr uint32_t LOW_BATT_DELAY_MS = 5000;  // ...for this long (ignores short dips under load)
 constexpr float   LOW_BATT_RESUME_V = 3.60f;  // per cell: new runs allowed again above this
