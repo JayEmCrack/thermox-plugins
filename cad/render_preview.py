@@ -2,6 +2,7 @@
 """PNG previews of the ThermoX designs (needs numpy and matplotlib).
 
   python3 render_preview.py OUTDIR [name ...]     e.g. python3 render_preview.py previews classic onepcb
+  python3 render_preview.py OUTDIR --onepcb       round bottles with the one-board PCB in the battery bay (adds a close-up)
 
 Each picture is a simple flat-shaded view of the same part lists that make_models.py exports (push-fan version).
 Glass shell panels are drawn see-through. Use the OBJ/STEP files for a real look in Blender or Fusion 360.
@@ -13,10 +14,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-ARGS = sys.argv[1:]
+FLAGS = [a for a in sys.argv[1:] if a.startswith("--")]
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
 OUT = ARGS[0] if ARGS else "previews"
 ONLY = ARGS[1:]
-sys.argv = [sys.argv[0], OUT]                      # make_models reads its own arguments at import
+sys.argv = [sys.argv[0], OUT] + FLAGS                      # make_models reads its own arguments at import
 import make_models as mm
 
 
@@ -63,7 +65,7 @@ def main():
     builders = dict(classic=mm.build_classic, modern=mm.build_modern, trail=mm.build_trail, pebble=mm.build_pebble,
                     deco=mm.build_deco, retro=mm.build_retro, duo=mm.build_duo, onepcb=mm.build_onepcb)
     for name, fn in builders.items():
-        if ONLY and name not in ONLY:
+        if (ONLY and name not in ONLY) or (mm.ONEPCB and name in ("retro", "duo", "onepcb")):
             continue
         d = fn()
         if name == "onepcb":
@@ -71,13 +73,16 @@ def main():
             fig = plt.figure(figsize=(14, 7), dpi=100)
         else:
             views = [("outside", 12, -55, False), ("see-through", 12, -55, True)]
-            fig = plt.figure(figsize=(14, 9), dpi=100)
+            if mm.ONEPCB:
+                views.append(("battery bay close-up", 28, -55, True))
+            fig = plt.figure(figsize=(7 * len(views), 9), dpi=100)
         for i, (tag, el, az, see) in enumerate(views):
             ax = fig.add_subplot(1, len(views), i + 1, projection="3d")
-            draw(ax, d["parts"], el, az, see)
+            draw(ax, [p for p in d["parts"] if "close-up" not in tag or (p["grp"] == "elec" and p["name"] not in ("plate_low", "pack_carrier", "bms_3s") and not p["name"].startswith("cell_") and max(q[2] for q in mm.mesh_of(p)[0]) < 125 + mm.PCB_SHIFT)]
+                 if name != "onepcb" else d["parts"], el, az, see)
             ax.set_title("%s (%s)" % (d["title"], tag), fontsize=11)
         fig.tight_layout()
-        path = os.path.join(OUT, "thermox_%s.png" % name)
+        path = os.path.join(OUT, "thermox_%s%s.png" % (name, "_onepcb" if mm.ONEPCB else ""))
         fig.savefig(path, facecolor="white"); plt.close(fig)
         print(path)
 

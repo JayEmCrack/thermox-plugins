@@ -85,9 +85,12 @@ def r_at(profile, z):
 
 
 # ================================================================ parts every design shares
-DZ = 14                       # the buck module sits under the battery, which lifts everything above the bay by 14 mm
-TOP = 263                     # top face of the lid on the round designs
-LID0 = 250                    # base of the lid = top of the cup
+ONEPCB = "--onepcb" in FLAGS  # round bottles with the 82 mm one-board PCB in the battery bay
+PCB_Z = 4                     # bottom of the one-board PCB (on the floor)
+PCB_SHIFT = 25                # extra height the PCB layer adds: PCB 21.6 + plate 1.4 + LM2596 on its plate, pack plate above
+DZ = 14 + (PCB_SHIFT if ONEPCB else 0)   # the buck module sits under the battery, which lifts everything above the bay by 14 mm
+TOP = 263 + (PCB_SHIFT if ONEPCB else 0)   # top face of the lid on the round designs
+LID0 = 250 + (PCB_SHIFT if ONEPCB else 0)  # base of the lid = top of the cup
 
 
 def lm2596(cx, cy, z0, long_axis="x"):
@@ -195,8 +198,34 @@ def onepcb_parts(cx, cy, z0, prefix="pcb_"):
     return T + 20.0
 
 
+def round_inside_onepcb():
+    """Battery bay with the 82 mm one-board PCB: the ESP32, trigger board, switch, fuse, capacitor and connectors are all on the
+    board (floor of the bay). A plate above it carries the LM2596 (wired to U2) and the BTS7960 (wired to J2, J7, J8);
+    the pack sits on a second plate above the LM2596."""
+    onepcb_parts(0, 0, PCB_Z)
+    z_plate = PCB_Z + 21.6 + 1.4
+    cyl("plate_low", "elec", 0, 0, 42, z_plate, z_plate + 1, "#8d99a3", "Plate above the PCB, 1 mm: carries the LM2596 and the BTS7960")
+    lm2596(0, 0, z_plate + 1, "x")
+    z_pack = z_plate + 1 + 14 + 1                      # 43: pack plate
+    box("pack_carrier", "elec", -30, 30, -21, 21, z_pack - 1, z_pack, "#8d99a3", "Carrier plate that holds the pack above the buck module, 1 mm")
+    for ix, cx in enumerate((-21, 0, 21)):
+        for iy, cy in enumerate((-10.5, 10.5)):
+            cyl("cell_%d%d" % (ix + 1, iy + 1), "elec", cx, cy, 10.5, z_pack, z_pack + 70, "#2f8f6f", "21700 cell, 21 x 70 mm (3S2P pack, 6 cells)")
+    box("bms_3s", "elec", -30, 30, -20, 20, z_pack + 71, z_pack + 74, "#3f6f9a", "3S battery protection board (BMS), size depends on the part")
+    box("bts7960", "elec", -24, 24, 22.5, 34.5, z_plate + 1, z_plate + 51, "#1e5aa8", "BTS7960 board without heatsink, about 50 x 50 mm (standing, wired to the PCB)")
+    cyl("bulkhead", "shell", 0, 0, 43.0, 96 + PCB_SHIFT, 98 + PCB_SHIFT, "#8d99a3", "Bulkhead between battery bay and air path, 2 mm (wires pass through)")
+    stack(0, 92 + DZ)
+    cyl("cup_floor", "cup", 0, 0, 37, 162 + DZ, 165 + DZ, "#c5ced6", "Cup floor, 3 mm aluminium spreader plate")
+    ring("cup_wall", "cup", 0, 0, 36, 37, 165 + DZ, LID0, "#c5ced6", "Water cup wall, inside diameter 72 mm", 0.55)
+    ring("insulation_sleeve", "cup", 0, 0, 37, 42.5, 165 + DZ, LID0, "#e0c88a", "Foam insulation sleeve, 5.5 mm", 0.4)
+    cyl("water", "water", 0, 0, 36, 165 + DZ, LID0 - 3, "#58b4e2", "Water, about 275 mL (68 mm deep)", 0.55)
+
+
 def round_inside():
     """Everything that sits inside the round bottles."""
+    # battery bay: LM2596 on the floor, pack on a carrier above it, boards standing beside the pack
+    if ONEPCB:
+        return round_inside_onepcb()
     # battery bay: LM2596 on the floor, pack on a carrier above it, boards standing beside the pack
     lm2596(0, 0, 4, "x")
     box("pack_carrier", "elec", -30, 30, -21, 21, 18, 19, "#8d99a3", "Carrier plate that holds the pack above the buck module, 1 mm")
@@ -1001,7 +1030,7 @@ if __name__ == "__main__":
         folder = ("bottle_" if d["kind"] == "round" else "") + d["name"]
         sub = os.path.join(OUT, folder)
         os.makedirs(sub, exist_ok=True)
-        tag = "thermox_" + folder + ("_pull" if d["kind"] == "round" and export_flow == "pull" else "")
+        tag = "thermox_" + folder + ("_pull" if d["kind"] == "round" and export_flow == "pull" else "") + ("_onepcb" if ONEPCB and d["kind"] == "round" else "")
         write_obj(os.path.join(sub, tag + ".obj"), os.path.join(sub, tag + ".mtl"))
         if "--extras" in FLAGS:
             write_stl(os.path.join(sub, tag + ".stl"))
