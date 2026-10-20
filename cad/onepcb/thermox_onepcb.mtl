@@ -1,0 +1,256 @@
+newmtl m_pcb_board
+Kd 0.122 0.420 0.227
+d 1.00
+
+newmtl m_pcb_esp_socket_a
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_esp_socket_b
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_esp32_board
+Kd 0.114 0.165 0.200
+d 1.00
+
+newmtl m_pcb_esp32_module
+Kd 0.722 0.737 0.761
+d 1.00
+
+newmtl m_pcb_esp32_usb
+Kd 0.604 0.639 0.671
+d 1.00
+
+newmtl m_pcb_trigger_pcb
+Kd 0.357 0.239 0.561
+d 1.00
+
+newmtl m_pcb_trigger_chip
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_trigger_usbc
+Kd 0.604 0.639 0.671
+d 1.00
+
+newmtl m_pcb_r1
+Kd 0.851 0.780 0.627
+d 1.00
+
+newmtl m_pcb_r2
+Kd 0.851 0.780 0.627
+d 1.00
+
+newmtl m_pcb_r3
+Kd 0.851 0.780 0.627
+d 1.00
+
+newmtl m_pcb_r4
+Kd 0.851 0.780 0.627
+d 1.00
+
+newmtl m_pcb_c4
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j1
+Kd 0.169 0.541 0.243
+d 1.00
+
+newmtl m_pcb_j2
+Kd 0.169 0.541 0.243
+d 1.00
+
+newmtl m_pcb_u2
+Kd 0.169 0.541 0.243
+d 1.00
+
+newmtl m_pcb_sw1
+Kd 0.173 0.200 0.220
+d 1.00
+
+newmtl m_pcb_sw1_lever
+Kd 0.788 0.808 0.827
+d 1.00
+
+newmtl m_pcb_f1
+Kd 0.812 0.780 0.690
+d 1.00
+
+newmtl m_pcb_c1
+Kd 0.102 0.165 0.424
+d 1.00
+
+newmtl m_pcb_j3_1
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j3_pin_1
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j3_2
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j3_pin_2
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j3_3
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j3_pin_3
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j3_4
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j3_pin_4
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j5_1
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j5_pin_1
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j5_2
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j5_pin_2
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j6_1
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j6_pin_1
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j6_2
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j6_pin_2
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j7_1
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j7_pin_1
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j7_2
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j7_pin_2
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j7_3
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j7_pin_3
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j9_1
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j9_pin_1
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j9_2
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j9_pin_2
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j9_3
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j9_pin_3
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j8_1
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j8_pin_1
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j8_2
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j8_pin_2
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j8_3
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j8_pin_3
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j4_1
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j4_pin_1
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j4_2
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j4_pin_2
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j4_3
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j4_pin_3
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_j4_4
+Kd 0.114 0.122 0.133
+d 1.00
+
+newmtl m_pcb_j4_pin_4
+Kd 0.788 0.635 0.290
+d 1.00
+
+newmtl m_pcb_jp1
+Kd 0.788 0.541 0.369
+d 1.00
+
