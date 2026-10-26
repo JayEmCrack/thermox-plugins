@@ -27,6 +27,10 @@ Libraries: OneWire, DallasTemperature, U8g2.
 On the one-board PCB a 12.6 V charger on J10 pulls GPIO19 high through R5 100k / R6 33k. When it is high for 0.5 s
 the Peltier stops, the OLED shows CHARGING ("Do not use while charging"), the buttons and the phone Start are
 refused, and the phone shows CHARGING. Unplug the charger to use ThermoX again. The status JSON has `"chg":1`.
+With battery sensing on, the CHARGING screen shows the charge level as 4 bars of 25 % (the bar being charged
+blinks) and a %. When the pack has stayed at `CHARGE_FULL_V` (4.04 V per cell, about 12.1 V: what the 12.6 V
+charger gives through D2) for a minute, all 4 bars stay on with FULL 100 % ("Battery is full. Unplug the charger").
+The status JSON then also has `"cp"` (charge %) and `"chf":1`. Without battery sensing the screen shows a moving bar.
 Set `ENABLE_CHARGE_DETECT = false` on a board without R5/R6 (GPIO19 would float).
 
 ## Bench test sketch
