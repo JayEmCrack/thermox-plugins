@@ -1,12 +1,12 @@
-# Compiles the ThermoX ESP32 firmware on every push and pull request,
+# Compiles the ThermoX ESP32 firmware and the bench test sketch on every push and pull request,
 # so a sketch that does not build is caught before it reaches the device.
 name: Compile ThermoX firmware
 
 on:
   push:
-    paths: ["ThermoX/**", ".github/workflows/compile-firmware.yml"]
+    paths: ["ThermoX/**", "ThermoX_Bench/**", ".github/workflows/compile-firmware.yml"]
   pull_request:
-    paths: ["ThermoX/**", ".github/workflows/compile-firmware.yml"]
+    paths: ["ThermoX/**", "ThermoX_Bench/**", ".github/workflows/compile-firmware.yml"]
   workflow_dispatch:
 
 jobs:
@@ -24,5 +24,8 @@ jobs:
           arduino-cli core install esp32:esp32@3.3.12 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli lib install "U8g2" "OneWire" "DallasTemperature"
 
-      - name: Compile (ESP32 Dev Module)
+      - name: Compile ThermoX (ESP32 Dev Module)
         run: arduino-cli compile --fqbn esp32:esp32:esp32 --warnings default ThermoX
+
+      - name: Compile ThermoX_Bench (hardware test)
+        run: arduino-cli compile --fqbn esp32:esp32:esp32 --warnings default ThermoX_Bench

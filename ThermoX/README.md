@@ -18,13 +18,30 @@ Libraries: OneWire, DallasTemperature, U8g2.
   after power-up. Nothing starts by itself: a run still needs a button press or Start on the phone.
 - **Low-battery cutoff** works only with battery sensing on (`ENABLE_BATTERY_SENSE = true` and the GPIO35 divider).
   If a cell stays below `LOW_BATT_CUTOFF_V` (3.30 V) for 5 s, the Peltier stops, the OLED and phone show
-  LOW BATT, and new runs are refused until the cell is back above `LOW_BATT_RESUME_V` (3.60 V). Set `BATT_CELLS`
-  to the number of cells in series and choose `BATT_DIVIDER` so GPIO35 stays below about 3.1 V
-  (1S: 100k/100k = 2.0; 3S 12.6 V: e.g. 100k/22k, divider 5.55). This is a second line of defence: still use a
-  protected pack or BMS.
+  LOW BATT, and new runs are refused until the cell is back above `LOW_BATT_RESUME_V` (3.60 V). `BATT_CELLS = 3`
+  and `BATT_DIVIDER = 5.545` are already set for the 3S pack and the 100k/22k divider on the one-board PCB
+  (`pcb/thermox_onepcb_*`), so only `ENABLE_BATTERY_SENSE` has to change. For a 1S cell use 1 and 2.0 (100k/100k).
+  Keep GPIO35 below about 3.1 V. This is a second line of defence: still use a protected pack or BMS.
+
+## Charging lock
+On the one-board PCB a 12.6 V charger on J10 pulls GPIO19 high through R5 100k / R6 33k. When it is high for 0.5 s
+the Peltier stops, the OLED shows CHARGING ("Do not use while charging"), the buttons and the phone Start are
+refused, and the phone shows CHARGING. Unplug the charger to use ThermoX again. The status JSON has `"chg":1`.
+With battery sensing on, the CHARGING screen shows the charge level as 4 bars of 25 % (the bar being charged
+blinks) and a %. When the pack has stayed at `CHARGE_FULL_V` (4.04 V per cell, about 12.1 V: what the 12.6 V
+charger gives through D2) for a minute, all 4 bars stay on with FULL 100 % ("Battery is full. Unplug the charger").
+The status JSON then also has `"cp"` (charge %) and `"chf":1`. Without battery sensing the screen shows a moving bar.
+Set `ENABLE_CHARGE_DETECT = false` on a board without R5/R6 (GPIO19 would float).
+
+## Bench test sketch
+`ThermoX_Bench/ThermoX_Bench.ino` tests the hardware before the real firmware goes on. Same pins. Serial Monitor at
+115200: `f` fan test (0/50/100 %), `h` / `c` 10 s Peltier heat / cool at 30 % (fan 100 %), `x` stop, `o` OLED test,
+`?` help. The OLED and Serial show the water temperature, battery voltage, charger, buttons, fan rpm and Peltier
+every second. It refuses Peltier tests while charging, without a sensor, or within 60 s of the last one, and stops a
+test above 50 C or below 5 C or when a charger is plugged in.
 
 ## Compile check (GitHub Actions)
-`.github/workflows/compile-firmware.yml` compiles `ThermoX/` with ESP32 core 3.3.12 on every push and pull request
+`.github/workflows/compile-firmware.yml` compiles `ThermoX/` and `ThermoX_Bench/` with ESP32 core 3.3.12 on every push and pull request
 that touches the firmware. A red check means the sketch would not build in the Arduino IDE either.
 
 ## Suggested additions

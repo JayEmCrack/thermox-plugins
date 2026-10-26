@@ -17,6 +17,8 @@
    - The last target and the power limit are saved and come back after power-up (no run starts by itself)
    - Low-battery cutoff (needs ENABLE_BATTERY_SENSE): stops the Peltier and blocks new runs until the
      battery recovers
+   - Charging (needs ENABLE_CHARGE_DETECT): while a charger is plugged into J10 the OLED shows CHARGING,
+     the Peltier stays off and no run can start, from the buttons or the phone
 */
 #include <Arduino.h>
 #include <Wire.h>
@@ -41,15 +43,26 @@ constexpr uint8_t PIN_REN      = 25;   // BTS7960 R_EN
 constexpr uint8_t PIN_ONEWIRE  = 14;   // DS18B20 data (4.7k pull-up to 3.3V)
 constexpr uint8_t PIN_FAN_PWM  = 23;   // SUNON control (blue/PWM wire)
 constexpr uint8_t PIN_FAN_TACH = 34;   // SUNON FG (input-only pin: needs external pull-up)
+constexpr uint8_t PIN_CHG_DET  = 19;   // HIGH while a charger is plugged into J10 (R5 100k / R6 33k divider)
 
-// Battery gauge: FUTURE ADDITION only. Leave false until the voltage divider is built
-// on GPIO35 (not in the current pin list; see README.md).
+// Charge detection: true for the ThermoX one-board PCB (J10 CHARGE). Set false on a board without
+// the R5/R6 divider, or GPIO19 floats and may read as charging.
+constexpr bool    ENABLE_CHARGE_DETECT = true;
+constexpr uint32_t CHARGE_DEBOUNCE_MS = 500;  // the pin must stay the same this long before it counts
+// Charging screen (needs ENABLE_BATTERY_SENSE): 4 bars of 25 %, FULL once the pack reaches what the
+// 12.6 V charger gives through D2 (about 12.1 V) and stays there. Check the real value with a meter.
+constexpr float   CHARGE_FULL_V  = 4.04f;     // per cell
+constexpr uint32_t CHARGE_FULL_MS = 60000;    // must stay at CHARGE_FULL_V this long before FULL
+
+// Battery gauge on GPIO35. Leave false until the board with the divider is built; then set it to true
+// to show battery % on the OLED and the phone and to turn on the low-battery cutoff.
+// The values below match the ThermoX one-board PCB: R3 100k / R4 22k from the 3S pack.
 constexpr bool    ENABLE_BATTERY_SENSE = false;
 constexpr uint8_t PIN_BATT_ADC = 35;
-constexpr float   BATT_DIVIDER = 2.0f;      // e.g. 100k/100k
-constexpr float   BATT_EMPTY_V = 3.3f;      // per cell, 1S Li-ion
+constexpr float   BATT_DIVIDER = 5.545f;    // (100k + 22k) / 22k
+constexpr float   BATT_EMPTY_V = 3.3f;      // per cell, Li-ion
 constexpr float   BATT_FULL_V  = 4.15f;
-constexpr uint8_t BATT_CELLS = 1;           // Li-ion cells in series (3S pack = 3); keep GPIO35 below ~3.1 V
+constexpr uint8_t BATT_CELLS = 3;           // Li-ion cells in series (3S pack); keep GPIO35 below ~3.1 V
 constexpr float   LOW_BATT_CUTOFF_V = 3.30f;  // per cell: Peltier stops below this...
 constexpr uint32_t LOW_BATT_DELAY_MS = 5000;  // ...for this long (ignores short dips under load)
 constexpr float   LOW_BATT_RESUME_V = 3.60f;  // per cell: new runs allowed again above this
@@ -122,6 +135,9 @@ uint8_t fanManualPct = 50;                   // MANUAL fan speed from the phone,
 uint8_t fanFloorPct = 0;                     // safety minimum for the MANUAL fan right now, %
 uint8_t tecPowerPct = 100;                   // Peltier power limit from the phone, % (saved)
 bool lowBatt = false;                        // low-battery cutoff active
+bool charging = false;                       // charger plugged in: ThermoX locked
+bool chargeFull = false;                     // charging and the pack is full for this charger
+int chgPct = -1;                             // charge level on the CHARGING screen (-1 = not measured)
 uint32_t lowBattSince = 0;
 Preferences prefs;
 
@@ -190,6 +206,29 @@ void readBattery() {
   battPct = constrain((int)((cell - BATT_EMPTY_V) * 100 / (BATT_FULL_V - BATT_EMPTY_V)), 0, 100);
 }
 
+// Charger on J10: GPIO19 reads HIGH through R5/R6. Debounced so plugging the jack in does not flicker.
+void readCharger() {
+  if (!ENABLE_CHARGE_DETECT) return;
+  static bool last = false; static uint32_t since = 0;
+  bool now = digitalRead(PIN_CHG_DET) == HIGH;
+  if (now != last) { last = now; since = millis(); }
+  else if (now != charging && millis() - since > CHARGE_DEBOUNCE_MS) charging = now;
+
+  // Charge level: 0-100 % up to what this charger reaches, 100 % only once it is really full.
+  static uint32_t fullSince = 0;
+  if (!charging || isnan(battV)) { chgPct = -1; chargeFull = false; fullSince = 0; return; }
+  float cell = battV / BATT_CELLS;
+  chgPct = constrain((int)((cell - BATT_EMPTY_V) * 100 / (CHARGE_FULL_V - BATT_EMPTY_V)), 0, 100);
+  if (cell >= CHARGE_FULL_V) {
+    if (fullSince == 0) fullSince = millis();
+    if (millis() - fullSince > CHARGE_FULL_MS) chargeFull = true;
+  } else {
+    fullSince = 0;
+    if (cell < CHARGE_FULL_V - 0.05f) chargeFull = false;
+  }
+  if (!chargeFull && chgPct > 99) chgPct = 99;
+}
+
 Btn bDown{PIN_BTN_DOWN, HIGH, 0, 0}, bUp{PIN_BTN_UP, HIGH, 0, 0};
 
 bool btnStep(Btn& b) {           // true on press and on 150 ms auto-repeat after 600 ms hold
@@ -229,6 +268,8 @@ void control() {
     }
   }
   if (lowBatt) { runDir = IDLE; newRun = false; reached = false; }
+  // Charging: ThermoX must not be used. Stop any run and refuse new ones until the charger is unplugged.
+  if (charging) { runDir = IDLE; newRun = false; reached = false; }
 
   // One run per button press. The direction is chosen when the press is handled; the run then
   // goes at full power until the water crosses the target. After that nothing restarts by itself,
@@ -276,10 +317,44 @@ void drawBattery(int x, int y) {
   else { oled.setFont(u8g2_font_5x7_tr); oled.drawStr(x + 8, y + 8, "?"); }
 }
 
+// Full screen shown while a charger is plugged in.
+void drawCharging(char* b, size_t n) {
+  oled.setFont(u8g2_font_6x12_tr);
+  oled.drawStr(2, 12, "ThermoX");
+  if (!isnan(waterC)) { snprintf(b, n, "%.1fC", waterC); oled.drawStr(92, 12, b); }
+  oled.drawHLine(0, 17, 128);
+  oled.drawFrame(24, 26, 74, 30); oled.drawBox(98, 34, 5, 14);
+  bool blink = (millis() / 500) % 2 == 0;
+  if (chgPct < 0) {
+    oled.drawBox(28, 30, ((millis() / 500) % 5) * 16 + 2, 22);   // no battery sensing: a moving bar only
+  } else {
+    // 4 bars of 25 %: the charged bars stay on, the bar being charged blinks, all 4 on when full
+    int on = chargeFull ? 4 : min(chgPct / 25, 3);
+    for (int i = 0; i < 4; i++)
+      if (i < on || (i == on && blink)) oled.drawBox(28 + i * 17, 30, 15, 22);
+  }
+  oled.setFont(u8g2_font_9x15_tr);
+  if (chargeFull) snprintf(b, n, "FULL 100%%");
+  else if (chgPct >= 0) snprintf(b, n, "CHARGING %d%%", chgPct);
+  else snprintf(b, n, "CHARGING");
+  oled.drawStr(64 - (int)strlen(b) * 9 / 2, 76, b);
+  oled.setFont(u8g2_font_6x12_tr);
+  if (chargeFull) {
+    oled.drawStr(4, 94, "Battery is full.");
+    oled.drawStr(4, 106, "Unplug the charger");
+    oled.drawStr(4, 118, "to use ThermoX.");
+  } else {
+    oled.drawStr(4, 94, "Do not use while");
+    oled.drawStr(4, 106, "charging. Unplug the");
+    oled.drawStr(4, 118, "charger to use it.");
+  }
+}
+
 void drawUI() {
   static uint32_t t0 = 0; if (millis() - t0 < 250) return; t0 = millis();
   char b[24];
   oled.clearBuffer();
+  if (charging) { drawCharging(b, sizeof b); oled.sendBuffer(); return; }
   oled.setFont(u8g2_font_6x12_tr);
   oled.drawStr(2, 12, "ThermoX");
   drawBattery(100, 3);
@@ -352,10 +427,10 @@ void statusJson(char* b, size_t n) {
   if (!isnan(battV)) snprintf(bv, sizeof bv, "%.2f", battV);
   snprintf(b, n,
     "{\"t\":%s,\"tg\":%.0f,\"tmin\":%.0f,\"tmax\":%.0f,\"m\":\"%s\",\"f\":\"%s\",\"r\":%d,\"w\":%u,"
-    "\"pel\":%u,\"fan\":%u,\"rpm\":%u,\"fc\":\"%s\",\"fp\":%u,\"fmin\":%u,\"bat\":%d,\"bv\":%s,\"lb\":%d,\"pw\":%u,\"up\":%lu,\"ev\":%u}",
+    "\"pel\":%u,\"fan\":%u,\"rpm\":%u,\"fc\":\"%s\",\"fp\":%u,\"fmin\":%u,\"bat\":%d,\"bv\":%s,\"lb\":%d,\"chg\":%d,\"cp\":%d,\"chf\":%d,\"pw\":%u,\"up\":%lu,\"ev\":%u}",
     t, targetC, TARGET_MIN, TARGET_MAX, MODE_TXT[mode], FAULT_TXT[fault], reached ? 1 : 0, (unsigned)waitLeftS,
     tecDuty * 100U / 255, fanDuty * 100U / 255, (unsigned)fanRpm, fanCtl == FAN_AUTO ? "auto" : "manual",
-    (unsigned)fanManualPct, (unsigned)fanFloorPct, battPct, bv, lowBatt ? 1 : 0, (unsigned)tecPowerPct, (unsigned long)millis(), (unsigned)evTotal);
+    (unsigned)fanManualPct, (unsigned)fanFloorPct, battPct, bv, lowBatt ? 1 : 0, charging ? 1 : 0, chgPct, chargeFull ? 1 : 0, (unsigned)tecPowerPct, (unsigned long)millis(), (unsigned)evTotal);
 }
 
 // Event log JSON, oldest first: {"up":<millis now>,"e":[[<millis>,"text"],...]} (under 512 bytes).
@@ -443,7 +518,7 @@ void handlePhone() {
         v >= (long)TARGET_MIN && v <= (long)TARGET_MAX) {
       targetC = v; newRun = true;
     } else if (c0 == 'S' && c1 == '\0') {
-      newRun = true; logEvent("Phone: start");
+      newRun = true; logEvent(charging ? "Charging: unplug first" : "Phone: start");
     } else if (c0 == 'X' && c1 == '\0') {
       runDir = IDLE; newRun = false; reached = false; logEvent("Phone: stop");
     } else if (c0 == 'F' && c1 == 'A' && s[2] == '\0') {
@@ -481,6 +556,11 @@ void trackEvents() {
   lastReached = reached;
   static bool lastLow = false;
   if (lowBatt != lastLow) { logEvent(lowBatt ? "LOW BATTERY: Peltier off" : "Battery OK again"); lastLow = lowBatt; }
+  static bool lastChg = false;
+  if (charging != lastChg) { logEvent(charging ? "Charger in: locked" : "Charger out"); lastChg = charging; }
+  static bool lastFull = false;
+  if (chargeFull && !lastFull) logEvent("Battery full");
+  lastFull = chargeFull;
   // A held button changes the target every 150 ms: log it once it has been steady for 1.5 s.
   if (targetC != lastTarget) { lastTarget = targetC; targetSince = now; }
   else if (targetC != loggedTarget && now - targetSince > 1500) { loggedTarget = targetC; logEvent("Target %.0f C", targetC); }
@@ -530,6 +610,7 @@ void setup() {
   pinMode(PIN_FAN_TACH, INPUT);                  // GPIO34: external 10k pull-up to 3.3V
   attachInterrupt(digitalPinToInterrupt(PIN_FAN_TACH), onTach, FALLING);
   if (ENABLE_BATTERY_SENSE) analogSetPinAttenuation(PIN_BATT_ADC, ADC_11db);
+  if (ENABLE_CHARGE_DETECT) pinMode(PIN_CHG_DET, INPUT);   // R6 33k pulls it down when no charger
 
   Wire.begin(PIN_SDA, PIN_SCL);
   oled.setI2CAddress(0x3C << 1);
@@ -540,7 +621,7 @@ void setup() {
 }
 
 void loop() {
-  readSensor(); readFan(); readBattery();
+  readSensor(); readFan(); readBattery(); readCharger();
   handleButtons();
   handlePhone();
   control();
