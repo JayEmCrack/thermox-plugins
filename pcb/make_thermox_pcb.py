@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """ThermoX one-board PCB: controller and power on a single 82 mm round board.
 
-The ESP32, the USB-C trigger board, the source switch, the fuse, the bulk capacitor, the battery gauge and every
-connector sit on one single-sided, through-hole board for home etching. It fits the 85 mm battery bay of the round
+The ESP32, the USB-C trigger board, the source switch, the fuse, the bulk capacitor, the battery gauge, the charge
+input with charger detection and every connector sit on one single-sided, through-hole board for home etching. It fits the 85 mm battery bay of the round
 bottles and replaces the controller board and the power board. The LM2596S 5 V buck module is wired to U2.
 
 To keep it this small, the trigger board (M1) lies flat under the ESP32, between its two female headers, with its
@@ -33,7 +33,7 @@ POUR_CLEAR = 0.8     # mm, gap between the ground fill and signal nets
 POUR_CLEAR_HI = 1.0  # mm, gap between the ground fill and the power nets
 EDGE_CLEAR = 0.6     # mm, copper kept away from the board edge
 GND_WIDE = 3.2       # mm, narrowest ground path allowed for the Peltier return current
-HI_NETS = ("BAT+", "PD+", "COM", "BUS")
+HI_NETS = ("BAT+", "PD+", "COM", "BUS", "CHG")
 W_HI, W_C, W_PWR, W_SIG = 4.0, 2.0, 1.2, 0.7     # trace widths, mm
 TB = (3.0, 1.3)      # 5.08 mm screw terminal pad (diameter, drill)
 FUSE = (3.4, 1.5)    # 5x20 mm PCB fuse holder (BLX-A type), pins 22.6 mm apart
@@ -49,7 +49,7 @@ LEFT_PINS = ["EN", "VP", "VN", "IO34", "IO35", "IO32", "IO33", "IO25", "IO26", "
 RIGHT_PINS = ["IO23", "IO22", "TX0", "RX0", "IO21", "IO19", "IO18", "IO5", "TX2", "RX2", "IO4", "IO2", "IO15", "GND", "3V3"]
 USED = {"IO34": "FG", "IO35": "BATT", "IO32": "BTN1", "IO33": "BTN2", "IO25": "R_EN", "IO26": "RPWM", "IO27": "LPWM",
         "IO14": "DQ", "IO13": "L_EN", "GND": "GND", "VIN": "5V",
-        "IO23": "PWM", "IO22": "SCL", "IO21": "SDA", "3V3": "3V3"}
+        "IO23": "PWM", "IO22": "SCL", "IO21": "SDA", "IO19": "CHGS", "3V3": "3V3"}
 LX = 23.15           # left ESP32 pin row, mm
 
 
@@ -128,6 +128,13 @@ def design(spacing):
         parts.append(dict(ref=ref, kind="jp", label="wire link", body=LineString([a, b]).buffer(0.5, 8), a=a, b=b,
                           link=True))
 
+    def diode(ref, label, anode, cathode, net_a, net_k):
+        """Axial Schottky diode (1N5822, DO-201AD body 5.3 x 9.5 mm), leads 15.24 mm apart. Square pad = anode."""
+        pad(anode[0], anode[1], net_a, ref, "A", FUSE, square=True); pad(cathode[0], cathode[1], net_k, ref, "K", FUSE)
+        cx, cy = (anode[0] + cathode[0]) / 2, (anode[1] + cathode[1]) / 2
+        body = box(cx - 4.75, cy - 2.65, cx + 4.75, cy + 2.65) if anode[1] == cathode[1] else box(cx - 2.65, cy - 4.75, cx + 2.65, cy + 4.75)
+        parts.append(dict(ref=ref, kind="dio", label=label, body=body, a=anode, k=cathode))
+
     def res(ref, label, a, b, net_a, net_b, under=False):
         """Resistor lying flat, leads 10.16 mm apart."""
         pad(a[0], a[1], net_a, ref, "1", SMALL); pad(b[0], b[1], net_b, ref, "2", SMALL)
@@ -147,7 +154,7 @@ def design(spacing):
     parts.append(dict(ref="U1", kind="esp32", label="ESP32 DevKit", body=esp, antenna=antenna))
 
     # ---- M1 trigger board under the ESP32; its output wires come out under the antenna end
-    module((27.85, 3.0, 43.85, 35.0), "bottom", (62.0, 46.0), (67.5, 46.0))
+    module((27.85, 3.0, 43.85, 35.0), "bottom", (62.0, 46.0), (56.5, 46.0))
 
     # ---- power: battery and USB-C -> SW1 -> F1 -> BUS
     terminal("J1", "BATTERY", [(70.5, 61.4, "BAT+", "BAT+"), (70.5, 56.32, "BAT-", "GND")], "right")
@@ -210,7 +217,21 @@ def design(spacing):
     tr("3V3", W_SIG, (RX, row(14)), (56.0, row(14)))
     tr("3V3", W_SIG, (56.0, row(4)), (OX, row(4)))
 
-    holes = [(41.0, 77.0), (7.5, 22.5), (74.0, 33.0)]
+    # ---- charging: J10 CHARGE (12.6 V Li-ion charger), D2 charges the battery, D1 powers the board while charging
+    # (SW1 may be off), R5/R6 tell GPIO19 that a charger is plugged in
+    terminal("J10", "CHARGE", [(73.5, 36.0, "+", "CHG"), (73.5, 30.92, "-", "GND")], "right")
+    diode("D2", "1N5822", (76.3, 40.4), (76.3, 55.64), "CHG", "BAT+")
+    diode("D1", "1N5822", (67.8, 36.5), (67.8, 51.74), "CHG", "COM")
+    res("R5", "100k", (68.66, 32.36), (58.5, 32.36), "CHG", "CHGS")
+    res("R6", "33k", (61.5, 30.0), (61.5, 19.84), "CHGS", "GND")
+    tr("CHG", W_C, (73.5, 36.0), (67.8, 36.5))
+    tr("CHG", W_C, (73.5, 36.0), (76.3, 39.0), (76.3, 40.4))
+    tr("CHG", W_SIG, (68.66, 32.36), (68.66, 36.3))
+    tr("BAT+", W_C, (76.3, 55.64), (75.0, 58.2), (70.5, 61.4))
+    tr("COM", W_C, (67.8, 51.74), (65.5, 54.0), (64.5, 56.7), (62.0, 56.7))
+    tr("CHGS", W_SIG, (RX, row(5)), (58.5, row(5)), (61.5, 30.0))
+
+    holes = [(41.0, 77.0), (7.5, 22.5), (66.0, 12.0)]
     marker = (36.0, 59.8)
     return dict(spacing=spacing, RX=RX, outline=outline, pads=pads, traces=traces, parts=parts, holes=holes,
                 marker=marker, keepout=antenna)
@@ -376,7 +397,8 @@ def place_label(text, body, d, taken, order, fs=7.0):
 
 
 COLORS = {"tb": "#2b8a3e", "hdr": "#2b8a3e", "fuse": "#1f6feb", "cap": "#7a3e00", "cer": "#7a3e00", "res": "#7a3e00",
-          "mod": "#6741d9", "sw": "#1f6feb", "reg": "#e8590c", "esp32": "#0b7285", "jp": "#c92a2a"}
+          "mod": "#6741d9", "sw": "#1f6feb", "reg": "#e8590c", "esp32": "#0b7285", "jp": "#c92a2a",
+          "dio": "#495057"}
 
 
 def parts_page(pdf, d, r):
@@ -387,7 +409,7 @@ def parts_page(pdf, d, r):
         "the two 1x15 female headers for the ESP32 last. Plug the ESP32 in with its USB end at the board edge.",
         "M1: set it to 12 V and measure first. Stick it down with thin foam tape, USB-C at the edge, and run its 2 output",
         "wires (1 mm2) out under the ESP32 antenna end to the M1 + and - pads. M1 must be 7 mm tall or less.",
-        "Arrows show where the wires go into the screw terminals.",
+        "Arrows show where the wires go into the screw terminals. D1, D2: the stripe (cathode) as drawn. Step by step: page 4.",
     ])
     ox, oy = 105 - S * R_BOARD, 128 - S * R_BOARD
     xs, ys = outline_xy(d, ox, oy, S)
@@ -461,6 +483,13 @@ def parts_page(pdf, d, r):
                     ha="center", va="center", rotation=rot, linespacing=1.5)
         elif pt["kind"] == "sw":
             label(pt, "SW1 ON-OFF-ON", color, fs=6.5)
+        elif pt["kind"] == "dio":
+            label(pt, "%s %s" % (pt["ref"], pt["label"]), color, fs=6.0, bold=False, order=("left", "right", "above", "below"))
+            (x0, y0), (x1, y1) = pt["a"], pt["k"]
+            bx0, by0, bx1, by1 = geom.bounds
+            if abs(x0 - x1) < 0.01:      # stripe (cathode end) across the body
+                yk = by1 - 1.2 if y1 > y0 else by0 + 1.2
+                ax.plot([ox + S * bx0, ox + S * bx1], [oy + S * yk, oy + S * yk], color=color, lw=2.5)
         elif pt["kind"] in ("cap", "cer", "res"):
             label(pt, "%s %s" % (pt["ref"], pt["label"]), color, fs=6.0 if pt["ref"] != "C1" else 6.5, bold=False)
             if pt["ref"] == "C1":
@@ -497,6 +526,7 @@ WIRING = [
                      "The module goes beside the board (foam tape); use 0.5 mm2 wires, 10-15 cm max."),
     ("M1 (on board)", "USB-C PD trigger board under the ESP32, USB-C at the board edge. Output + / - to the M1 pads."),
     ("SW1 (on board)", "ON-OFF-ON: BATT = battery, middle = off, USB = trigger board. Holes also take 3 wires to a case switch."),
+    ("J10 CHARGE", "DC jack 5.5 x 2.1 mm on the case: centre pin (+) to J10 +, sleeve (-) to J10 -. Check with a meter."),
 ]
 NOTES = [
     "Only ONE source at a time: SW1 picks battery or USB-C. Never connect the trigger board straight to the battery.",
@@ -509,6 +539,9 @@ NOTES = [
     "LM2596S module: if it has a trimmer, set it to 5.0 V with a meter BEFORE wiring it to U2. Never more than 5.2 V.",
     "Before the ESP32 goes in: check that BAT+, PD+, COM, BUS, 5V and 3V3 are not shorted to GND. Switch on BATT and",
     "measure 5.0 V between the ESP32 socket VIN and GND pins. Only then plug in the ESP32.",
+    "Charging: 12.6 V Li-ion charger (3S, CC/CV) into J10 only. D2 charges the battery (to about 90 %), D1 powers the",
+    "board, R5/R6 tell GPIO19. The OLED shows CHARGING and ThermoX will not run until the charger is unplugged.",
+    "Never plug the USB-C charger (trigger board) and the DC charger in at the same time.",
 ]
 BOM = [
     "U1: ESP32 DevKit 30-pin + two 1x15 female headers (8.5 mm tall)    M1: USB-C PD/QC trigger board, max 32 x 16 x 7 mm",
@@ -516,7 +549,67 @@ BOM = [
     "SW1: MTS-103 ON-OFF-ON    F1: BLX-A 5x20 holder + 10 A slow-blow fuse    C1: 2200 uF 25 V low ESR, max 13 mm",
     "R1 10k, R2 4.7k, R3 100k, R4 22k (1/4 W)    C4: 100 nF ceramic    J1, J2: 2-pin screw terminal 5.08 mm (KF301)",
     "J3 4-pin, J4 4-pin, J5/J6 2-pin, J7 3-pin, J8 3-pin, J9 3-pin male headers 2.54 mm    M3 screws: 3",
+    "Charging: J10 2-pin screw terminal (KF301)  D1, D2: 1N5822 (3 A Schottky)  R5 100k, R6 33k  DC jack 5.5x2.1 (female)",
+    "          + 12.6 V 2 A Li-ion charger (3S). NOT a 21 V (5S) charger.",
 ]
+
+TUTORIAL = [
+    ("A. MAKE THE BOARD", [
+        "1. Measure your ESP32: centre of a left pin to centre of the right pin, same row. 25.4 mm or 22.86 mm: use that PDF.",
+        "2. Print page 1 at 100 % (Actual size) on glossy paper with a laser printer. The 50 mm bar must be 50 mm.",
+        "3. Lay the parts on the paper: ESP32, fuse holder, switch, D1, D2, screw terminals. Check the holes line up.",
+        "4. Toner transfer, etch, remove the toner, drill (sizes on page 1). The text THERMOX reads normally on the copper.",
+        "5. With a meter (beep), check that no two neighbouring tracks touch."]),
+    ("B. SOLDER (low parts first)", [
+        "6. Under the ESP32, flat on the board: R1 10k, R2 4.7k, R3 100k, R4 22k, C4 100 nF.",
+        "7. JP1 wire link, R5 100k, R6 33k, D1 and D2 1N5822: the stripe on the diode goes to the stripe on page 2.",
+        "8. Headers J3-J9, screw terminals J1, J2, J10, U2 wires (or KF301-3P), F1 holder, C1 (stripe = -), SW1.",
+        "9. M1 trigger board: set it to 12 V and measure. Foam tape under it, USB-C at the edge, 2 wires to M1 + and -.",
+        "10. The two female headers for the ESP32 last. Do NOT plug in the ESP32 yet."]),
+    ("C. FIRST POWER-UP (no ESP32, no BTS7960)", [
+        "11. Meter: BAT+, PD+, COM, BUS, CHG, 5V and 3V3 must NOT beep to GND.",
+        "12. LM2596S module: set it to 5.0 V with a meter, then wire it to U2 (IN+, GND, OUT+).",
+        "13. Battery on J1, SW1 on BATT: ESP32 socket VIN = 5.0 V, J2 B+ = battery voltage. SW1 middle: everything 0 V.",
+        "14. SW1 middle, charger on J10: VIN = 5.0 V (the charger powers the board) and the battery voltage slowly rises."]),
+    ("D. BENCH TEST (ThermoX_Bench.ino)", [
+        "15. Plug in the ESP32 (USB end at the board edge). Upload ThermoX_Bench/ThermoX_Bench.ino. Serial Monitor 115200.",
+        "16. The OLED and the Serial Monitor show TEMP, BATT, CHARGER, B1/B2 (press each button), fan rpm, Peltier.",
+        "17. Type f: fan test. The rpm must go up at 50 % and at 100 %.",
+        "18. Connect the BTS7960 (J2, J7, J8) and the Peltier with its heat sink and fan. Type h: 10 s heat at 30 %.",
+        "    The side that should get warm gets warm. After 60 s type c: it must get cold. If it is the other way round,",
+        "    swap the two Peltier wires on M+ and M- of the BTS7960.",
+        "19. Plug the charger in: CHARGER shows IN and h / c are refused. Unplug it again."]),
+    ("E. NORMAL USE", [
+        "20. Upload ThermoX/ThermoX.ino. For battery %: set ENABLE_BATTERY_SENSE = true and upload again.",
+        "21. Charging: SW1 to the middle, plug the 12.6 V charger into the DC jack. The OLED shows CHARGING and ThermoX",
+        "    will not run (buttons and phone too) until the charger is unplugged. Charger LED green = full.",
+        "22. Deploying all day: use USB-C (SW1 on USB, trigger board at 12 V, Peltier at 40-60 %), not the battery.",
+        "23. Never plug the USB-C charger and the DC charger in at the same time."]),
+]
+
+
+def tutorial_page(pdf, d):
+    fig, ax = base.page(pdf, "ThermoX ONE BOARD: TUTORIAL (build, test, charge)", [])
+    y = 270
+    for head, steps in TUTORIAL:
+        ax.text(12, y, head, fontsize=8, weight="bold", va="top"); y -= 5.2
+        for st in steps:
+            ax.text(14, y, st, fontsize=6.6, va="top"); y -= 4.3
+        y -= 2.5
+    # charge jack wiring
+    y0 = y - 40
+    ax.text(12, y0 + 36, "HOW THE CHARGER CONNECTS", fontsize=8, weight="bold")
+    boxes = [(12, y0 + 14, "12.6 V Li-ion\ncharger (3S)"), (56, y0 + 14, "DC jack 5.5x2.1\non the case"),
+             (100, y0 + 14, "J10 CHARGE\n+ and -"), (150, y0 + 26, "D2 -> battery (J1)"), (150, y0 + 14, "D1 -> board power"),
+             (150, y0 + 2, "R5/R6 -> GPIO19\nOLED: CHARGING")]
+    for x, yy, t in boxes:
+        ax.add_patch(Rectangle((x, yy), 38, 9, facecolor="#f1f3f5", edgecolor="0.4", lw=0.6))
+        ax.text(x + 19, yy + 4.5, t, fontsize=6.3, ha="center", va="center")
+    for (x0, y0_, x1, y1) in [(50, y0 + 18.5, 56, y0 + 18.5), (94, y0 + 18.5, 100, y0 + 18.5), (138, y0 + 18.5, 150, y0 + 30.5),
+                              (138, y0 + 18.5, 150, y0 + 18.5), (138, y0 + 18.5, 150, y0 + 6.5)]:
+        ax.annotate("", xy=(x1, y1), xytext=(x0, y0_), arrowprops=dict(arrowstyle="->", color="0.3", lw=0.8))
+    ax.text(12, y0 + 8, "Centre pin = +, sleeve = -\n(measure your charger).", fontsize=6.3, va="top")
+    pdf.savefig(fig); plt.close(fig)
 
 
 def wiring_page(pdf, d, r):
@@ -550,6 +643,7 @@ def main():
             copper_page(pdf, d, r)
             parts_page(pdf, d, r)
             wiring_page(pdf, d, r)
+            tutorial_page(pdf, d)
         print("rows", tag, "OK ->", os.path.basename(path))
     sys.exit(0 if ok else 1)
 

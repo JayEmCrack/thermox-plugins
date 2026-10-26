@@ -17,11 +17,18 @@ of the right pin in the same row, 25.4 mm or 22.86 mm.
 | JP1 | Wire link | Carries 3.3 V to the OLED header (bare wire on the parts side) |
 | J1 BATTERY / J2 BTS7960 | Screw terminals | Battery after the BMS / BTS7960 B+ and B- |
 | J3 FAN, J4 OLED, J5/J6 buttons, J7/J8 BTS7960 control, J9 TEMP | 2.54 mm headers | Same pins as the firmware (GPIO assignments unchanged) |
+| J10 CHARGE | 2-pin screw terminal (KF301) | To a 5.5 x 2.1 mm DC jack on the case: centre pin (+) to J10 +, sleeve to J10 - |
+| D1, D2 | 1N5822 (3 A Schottky) | D2: charger to the battery. D1: charger to the board, so the OLED works with SW1 in the middle. Stripe as drawn |
+| R5, R6 | 100k, 33k | Charger detect on GPIO19: about 3.1 V when a 12.6 V charger is plugged in |
 
 - No copper sits under the ESP32 antenna, for better Bluetooth range.
 - The battery gauge is on the board. `ThermoX.ino` already has `BATT_CELLS = 3` and `BATT_DIVIDER = 5.545`; set
   `ENABLE_BATTERY_SENSE = true` to show battery % on the OLED and the phone. On USB-C power it shows the USB
   voltage, not the battery.
+- Charging: SW1 in the middle, plug a **12.6 V (3S) CC/CV Li-ion charger** (2 A) into the DC jack. Never a 21 V (5S)
+  charger. The battery charges through D2 to about 90 % (the diode drops a little voltage). The OLED shows CHARGING
+  and ThermoX will not run (buttons and phone) until the charger is unplugged. Never plug the USB-C charger and the
+  DC charger in at the same time.
 - All the power-board notes below apply: one source at a time, trigger board at 12 V only, the USB-C power limit,
   the MTS-103 rating and the switching regulator.
 
@@ -29,6 +36,8 @@ of the right pin in the same row, 25.4 mm or 22.86 mm.
 connected (the wire link counts), no copper under the antenna, a ground path of at least 3.2 mm for the Peltier
 current, and no part bodies overlapping (the low parts under the ESP32 are allowed there). The board has not been
 made yet: print page 1 and check the ESP32, the trigger board, the fuse holder and the switch on the paper first.
+Each PDF has four pages: copper at actual size, parts side, wiring/parts/notes, and a step-by-step tutorial (make,
+solder, first power-up, bench test with `ThermoX_Bench`, charging).
 
 # ThermoX controller PCB (home-etch, single-sided)
 

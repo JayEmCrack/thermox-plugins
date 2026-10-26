@@ -23,8 +23,21 @@ Libraries: OneWire, DallasTemperature, U8g2.
   (`pcb/thermox_onepcb_*`), so only `ENABLE_BATTERY_SENSE` has to change. For a 1S cell use 1 and 2.0 (100k/100k).
   Keep GPIO35 below about 3.1 V. This is a second line of defence: still use a protected pack or BMS.
 
+## Charging lock
+On the one-board PCB a 12.6 V charger on J10 pulls GPIO19 high through R5 100k / R6 33k. When it is high for 0.5 s
+the Peltier stops, the OLED shows CHARGING ("Do not use while charging"), the buttons and the phone Start are
+refused, and the phone shows CHARGING. Unplug the charger to use ThermoX again. The status JSON has `"chg":1`.
+Set `ENABLE_CHARGE_DETECT = false` on a board without R5/R6 (GPIO19 would float).
+
+## Bench test sketch
+`ThermoX_Bench/ThermoX_Bench.ino` tests the hardware before the real firmware goes on. Same pins. Serial Monitor at
+115200: `f` fan test (0/50/100 %), `h` / `c` 10 s Peltier heat / cool at 30 % (fan 100 %), `x` stop, `o` OLED test,
+`?` help. The OLED and Serial show the water temperature, battery voltage, charger, buttons, fan rpm and Peltier
+every second. It refuses Peltier tests while charging, without a sensor, or within 60 s of the last one, and stops a
+test above 50 C or below 5 C or when a charger is plugged in.
+
 ## Compile check (GitHub Actions)
-`.github/workflows/compile-firmware.yml` compiles `ThermoX/` with ESP32 core 3.3.12 on every push and pull request
+`.github/workflows/compile-firmware.yml` compiles `ThermoX/` and `ThermoX_Bench/` with ESP32 core 3.3.12 on every push and pull request
 that touches the firmware. A red check means the sketch would not build in the Arduino IDE either.
 
 ## Suggested additions
