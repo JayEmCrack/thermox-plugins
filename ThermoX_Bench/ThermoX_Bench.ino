@@ -28,12 +28,12 @@
 #include <U8g2lib.h>
 
 // ---------------- Pins (as in ThermoX.ino) ----------------
-constexpr uint8_t PIN_BTN_DOWN = 32, PIN_BTN_UP = 33;
+constexpr uint8_t PIN_BTN_DOWN = 18, PIN_BTN_UP = 33;
 constexpr uint8_t PIN_SDA = 21, PIN_SCL = 22;
 constexpr uint8_t PIN_LPWM = 27, PIN_RPWM = 26, PIN_LEN = 13, PIN_REN = 25;
 constexpr uint8_t PIN_ONEWIRE = 14;
-constexpr uint8_t PIN_FAN_PWM = 23, PIN_FAN_TACH = 34;
-constexpr uint8_t PIN_BATT_ADC = 35, PIN_CHG_DET = 19;
+constexpr uint8_t PIN_FAN_PWM = 23, PIN_FAN_TACH = 35;
+constexpr uint8_t PIN_BATT_ADC = 36, PIN_CHG_DET = 19;
 
 constexpr float    BATT_DIVIDER = 5.545f;      // R3 100k / R4 22k
 constexpr bool     HEAT_ON_RPWM = true;        // same as ThermoX.ino

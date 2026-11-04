@@ -38,9 +38,9 @@ Parts on the board
 - F1: 5 x 20 mm fuse holder (BLX-A) + 10 A slow-blow fuse
 - C1: 2200 uF 25 V low-ESR electrolytic capacitor (max 13 mm diameter)
 - C4: 100 nF ceramic capacitor (battery gauge filter)
-- R1: 10 kOhm 1/4 W (fan tach pull-up, GPIO34)
+- R1: 10 kOhm 1/4 W (fan tach pull-up, GPIO35)
 - R2: 4.7 kOhm 1/4 W (DS18B20 pull-up, GPIO14)
-- R3: 100 kOhm 1/4 W + R4: 22 kOhm 1/4 W (battery gauge divider, GPIO35)
+- R3: 100 kOhm 1/4 W + R4: 22 kOhm 1/4 W (battery gauge divider, GPIO36 / VP)
 - R5: 100 kOhm 1/4 W + R6: 33 kOhm 1/4 W (charger detect divider, GPIO19)
 - D1, D2: 1N5822 Schottky diodes, 3 A (D1 = charger to board, D2 = charger to battery)
 - JP1: bare wire link (3.3 V to the OLED header)
@@ -77,13 +77,13 @@ Connectors
 
 6. ESP32 PIN MAP (firmware ThermoX.ino)
 -------------------------------------------------------------------------------
-- GPIO32 Button 1 (DOWN)          - GPIO33 Button 2 (UP)
+- GPIO18 Button 1 (DOWN)          - GPIO33 Button 2 (UP)
 - GPIO21 OLED SDA                 - GPIO22 OLED SCL
 - GPIO26 BTS7960 RPWM             - GPIO27 BTS7960 LPWM
 - GPIO25 BTS7960 R_EN             - GPIO13 BTS7960 L_EN
 - GPIO14 DS18B20 data             - GPIO23 Fan PWM
-- GPIO34 Fan tach (FG)            - GPIO35 Battery voltage (ADC)
-- GPIO19 Charger detect
+- GPIO35 Fan tach (FG)            - GPIO36 (VP) Battery voltage (ADC)
+- GPIO19 Charger detect           - GPIO32 and GPIO34: not used
 
 7. SOFTWARE AND FILES (repository)
 -------------------------------------------------------------------------------

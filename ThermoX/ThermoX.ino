@@ -32,7 +32,7 @@
 #include <Preferences.h>       // saved settings (flash)
 
 // ---------------- Pins (as wired) ----------------
-constexpr uint8_t PIN_BTN_DOWN = 32;   // Button 1
+constexpr uint8_t PIN_BTN_DOWN = 18;   // Button 1 (moved from GPIO32)
 constexpr uint8_t PIN_BTN_UP   = 33;   // Button 2
 constexpr uint8_t PIN_SDA      = 21;
 constexpr uint8_t PIN_SCL      = 22;
@@ -42,7 +42,7 @@ constexpr uint8_t PIN_LEN      = 13;   // BTS7960 L_EN
 constexpr uint8_t PIN_REN      = 25;   // BTS7960 R_EN
 constexpr uint8_t PIN_ONEWIRE  = 14;   // DS18B20 data (4.7k pull-up to 3.3V)
 constexpr uint8_t PIN_FAN_PWM  = 23;   // SUNON control (blue/PWM wire)
-constexpr uint8_t PIN_FAN_TACH = 34;   // SUNON FG (input-only pin: needs external pull-up)
+constexpr uint8_t PIN_FAN_TACH = 35;   // SUNON FG (input-only pin: needs external pull-up; GPIO34 no longer used)
 constexpr uint8_t PIN_CHG_DET  = 19;   // HIGH while a charger is plugged into J10 (R5 100k / R6 33k divider)
 
 // Charge detection: true for the ThermoX one-board PCB (J10 CHARGE). Set false on a board without
@@ -54,15 +54,15 @@ constexpr uint32_t CHARGE_DEBOUNCE_MS = 500;  // the pin must stay the same this
 constexpr float   CHARGE_FULL_V  = 4.04f;     // per cell
 constexpr uint32_t CHARGE_FULL_MS = 60000;    // must stay at CHARGE_FULL_V this long before FULL
 
-// Battery gauge on GPIO35. Leave false until the board with the divider is built; then set it to true
+// Battery gauge on GPIO36 (VP). Leave false until the board with the divider is built; then set it to true
 // to show battery % on the OLED and the phone and to turn on the low-battery cutoff.
 // The values below match the ThermoX one-board PCB: R3 100k / R4 22k from the 3S pack.
 constexpr bool    ENABLE_BATTERY_SENSE = false;
-constexpr uint8_t PIN_BATT_ADC = 35;
+constexpr uint8_t PIN_BATT_ADC = 36;   // VP pin, ADC1 (moved from GPIO35)
 constexpr float   BATT_DIVIDER = 5.545f;    // (100k + 22k) / 22k
 constexpr float   BATT_EMPTY_V = 3.3f;      // per cell, Li-ion
 constexpr float   BATT_FULL_V  = 4.15f;
-constexpr uint8_t BATT_CELLS = 3;           // Li-ion cells in series (3S pack); keep GPIO35 below ~3.1 V
+constexpr uint8_t BATT_CELLS = 3;           // Li-ion cells in series (3S pack); keep GPIO36 below ~3.1 V
 constexpr float   LOW_BATT_CUTOFF_V = 3.30f;  // per cell: Peltier stops below this...
 constexpr uint32_t LOW_BATT_DELAY_MS = 5000;  // ...for this long (ignores short dips under load)
 constexpr float   LOW_BATT_RESUME_V = 3.60f;  // per cell: new runs allowed again above this
@@ -607,7 +607,7 @@ void setup() {
   if (ENABLE_BLE_CONTROL) bleBegin();            // after the Peltier and fan outputs are safely off
 
   pinMode(PIN_BTN_DOWN, INPUT_PULLUP); pinMode(PIN_BTN_UP, INPUT_PULLUP);
-  pinMode(PIN_FAN_TACH, INPUT);                  // GPIO34: external 10k pull-up to 3.3V
+  pinMode(PIN_FAN_TACH, INPUT);                  // GPIO35: external 10k pull-up to 3.3V
   attachInterrupt(digitalPinToInterrupt(PIN_FAN_TACH), onTach, FALLING);
   if (ENABLE_BATTERY_SENSE) analogSetPinAttenuation(PIN_BATT_ADC, ADC_11db);
   if (ENABLE_CHARGE_DETECT) pinMode(PIN_CHG_DET, INPUT);   // R6 33k pulls it down when no charger
