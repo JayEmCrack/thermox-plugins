@@ -1,0 +1,110 @@
+THERMOX - FINAL COMPONENTS LIST
+Portable heating/cooling water bottle (Peltier), ESP32 controlled, one-board PCB
+===============================================================================
+
+1. MAIN MODULES (ELECTRONICS)
+-------------------------------------------------------------------------------
+- ESP32 DevKit, 30-pin (ESP-WROOM-32): the controller, with Bluetooth (BLE) for the phone page
+- 1.5" OLED display, 128 x 128, SH1107, I2C (GME128128-01-IIC)
+- DS18B20 waterproof temperature sensor (probe type): water temperature
+- BTS7960 (IBT-2) 43 A H-bridge motor driver: drives the Peltier (heat / cool)
+- Peltier module TEC1-12706 (12 V, about 6 A)
+- SUNON 40 x 40 x 28 mm 12 V fan, 4-wire (PWM + FG tach)
+- LM2596S DC-DC buck module (24 V/12 V to 5 V, set to 5.0 V): 5 V for the ESP32, BTS7960 logic and DS18B20
+- USB-C PD/QC trigger board (100 W 5 A type, e.g. ZY12PDN), set to 12 V, max 32 x 16 x 7 mm
+- 2 x push buttons (momentary): Button 1 = DOWN (-), Button 2 = UP (+)
+
+2. BATTERY AND CHARGING
+-------------------------------------------------------------------------------
+- 6 x Enook 21700 Li-ion cells, 3.7 V 5000 mAh, 40 A -> 3S2P pack (11.1 V nominal, 12.6 V full, 10 Ah)
+- 3S Li-ion BMS / protection board (rated well above the Peltier + fan current; 15 A or more recommended)
+- 12.6 V 2 A Li-ion charger (3S, CC/CV) with a 5.5 x 2.1 mm plug
+  (NOT a 21 V / 5S charger such as the YH-2110: it would overcharge the 3S pack)
+- DC jack 5.5 x 2.1 mm, female, panel mount (on the case)
+- USB-C PD charger 12 V (5 A recommended) + 5 A USB-C cable: for all-day use without the battery
+
+3. ONE-BOARD PCB (82 mm round, single-sided, home-etched)
+-------------------------------------------------------------------------------
+Board and making
+- Copper-clad board, single-sided FR4, at least 85 x 85 mm (cut to an 82 mm circle)
+- Glossy paper + laser printer (toner transfer), ferric chloride etchant, drill bits
+- 3 x M3 screws + nuts/standoffs (mounting holes)
+
+Parts on the board
+- U1: ESP32 sits on 2 x 1x15 female headers (2.54 mm, 8.5 mm tall)
+- M1: USB-C PD/QC trigger board (lies under the ESP32 on foam tape)
+- U2: LM2596S 5 V module, wired to the IN+ / GND / OUT+ pads (or a KF301-3P 3-pin screw terminal)
+- SW1: MTS-103 ON-OFF-ON mini toggle switch (BATT / OFF / USB)
+- F1: 5 x 20 mm fuse holder (BLX-A) + 10 A slow-blow fuse
+- C1: 2200 uF 25 V low-ESR electrolytic capacitor (max 13 mm diameter)
+- C4: 100 nF ceramic capacitor (battery gauge filter)
+- R1: 10 kOhm 1/4 W (fan tach pull-up, GPIO34)
+- R2: 4.7 kOhm 1/4 W (DS18B20 pull-up, GPIO14)
+- R3: 100 kOhm 1/4 W + R4: 22 kOhm 1/4 W (battery gauge divider, GPIO35)
+- R5: 100 kOhm 1/4 W + R6: 33 kOhm 1/4 W (charger detect divider, GPIO19)
+- D1, D2: 1N5822 Schottky diodes, 3 A (D1 = charger to board, D2 = charger to battery)
+- JP1: bare wire link (3.3 V to the OLED header)
+
+Connectors
+- J1 BATTERY: 2-pin screw terminal 5.08 mm (KF301-2P)
+- J2 BTS7960 B+/B-: 2-pin screw terminal 5.08 mm (KF301-2P)
+- J10 CHARGE: 2-pin screw terminal 5.08 mm (KF301-2P), to the DC jack
+- J3 FAN: 4-pin male header 2.54 mm
+- J4 OLED: 4-pin male header 2.54 mm
+- J5 / J6 buttons: 2 x 2-pin male header 2.54 mm
+- J7 BTS7960 A (R_EN, RPWM, LPWM): 3-pin male header 2.54 mm
+- J8 BTS7960 B (L_EN, GND, VCC): 3-pin male header 2.54 mm
+- J9 TEMP (DS18B20): 3-pin male header 2.54 mm
+- Female Dupont jumper wires / connectors for the headers
+
+4. THERMAL AND MECHANICAL
+-------------------------------------------------------------------------------
+- Copper heatsink on the Peltier hot side (fan blows into it)
+- Aluminium water cup / inner container, Peltier cold side on its floor
+- Thermal paste (between Peltier, cup and heatsink)
+- Bottle body, 3D printed: one of the CAD designs in cad/ (Classic, Modern, Trail, Pebble, Deco, Retro, Duo)
+  with an 85 mm battery bay for the round PCB
+- Foam tape (trigger board, LM2596 module), screws, silicone carry loop (per design)
+
+5. WIRES AND CONSUMABLES
+-------------------------------------------------------------------------------
+- 1.5 mm2 wire: battery, BTS7960 B+/B- and Peltier (M+/M-) power
+- 1 mm2 wire: USB-C trigger board output to the M1 pads
+- 0.5 mm2 wire: LM2596 module (10-15 cm max)
+- Thin hook-up wire: buttons, OLED, sensor, fan, control lines
+- Solder, flux, heat-shrink tubing
+- Multimeter (set the trigger board to 12 V and the LM2596 to 5.0 V before connecting)
+
+6. ESP32 PIN MAP (firmware ThermoX.ino)
+-------------------------------------------------------------------------------
+- GPIO32 Button 1 (DOWN)          - GPIO33 Button 2 (UP)
+- GPIO21 OLED SDA                 - GPIO22 OLED SCL
+- GPIO26 BTS7960 RPWM             - GPIO27 BTS7960 LPWM
+- GPIO25 BTS7960 R_EN             - GPIO13 BTS7960 L_EN
+- GPIO14 DS18B20 data             - GPIO23 Fan PWM
+- GPIO34 Fan tach (FG)            - GPIO35 Battery voltage (ADC)
+- GPIO19 Charger detect
+
+7. SOFTWARE AND FILES (repository)
+-------------------------------------------------------------------------------
+- ThermoX/ThermoX.ino: main firmware (one run per press, safety cutoffs, BLE phone control,
+  battery %, low-battery cutoff, charging lock with 4-bar charging screen and FULL)
+- ThermoX_Bench/ThermoX_Bench.ino: hardware test sketch (fan, Peltier, OLED, sensor, charger)
+- dashboard/phone.html: phone control page over Bluetooth (BLE)
+- dashboard/ (index.html, app.js, api/, PHP) + database/schema.sql: web dashboard and MySQL logging
+- receiver/receiver.py: PC receiver, Bluetooth serial to the web API
+- pcb/thermox_onepcb_round82_rows25.4.pdf and ..._rows22.86.pdf: final PCB
+  (copper, parts side, wiring/parts, step-by-step tutorial)
+- cad/: 3D models of the bottle designs (STEP, OBJ)
+- ThermoX Bench web simulator (claude.ai artifact): test the OLED and logic without uploading
+
+8. IMPORTANT SETTINGS / SAFETY
+-------------------------------------------------------------------------------
+- Trigger board: 12 V only (never 15 V or 20 V); measure before soldering
+- LM2596S: set to 5.0 V before wiring it to the board
+- Only one power source at a time: never plug the USB-C and the DC charger in together
+- Charge with SW1 in the middle (OFF); ThermoX is locked while charging
+- In ThermoX.ino set ENABLE_BATTERY_SENSE = true on the one-board PCB (battery % and charging bars)
+- On battery keep the Peltier power at 80 % or less (MTS-103 is rated 6 A), or use a 10 A toggle
+- Water cutoffs: 55 C (too hot) and 5 C (too cold); fan stall stops the Peltier
+- Not yet built or tested on real hardware: print the PCB page 1 and check the parts on paper first
