@@ -5,19 +5,24 @@
 Button 2 GPIO33, fan FG GPIO35, battery gauge GPIO36 (VP), charger detect GPIO19. Pick the PDF that matches your ESP32
 pin rows (25.4 mm or 22.86 mm).
 
-The holes are named like a chess board: columns A-R, rows 1-24. Each PDF has five pages:
-1. **Parts side**: where every part, header and wire pad goes, with the pin names.
-2. **Solder side** (board turned over): every bare-wire trail, coloured by net, and the four insulated wires W1-W4.
-3. **Build steps**: a checklist of the parts with their holes and of every trail, corner by corner.
-4. **Wires, meter checks, first power-up, test.**
-5. **Off-board wiring** (battery, switch, fuse, BTS7960 with C1, trigger board, LM2596, DC jack, charger) and parts.
+The holes are named like a chess board: columns A-R, rows 1-24. Each PDF has seven pages:
+1. **True size (1:1)**: print at 100 % (check the 50 mm bar), cut out copy A and tape it on the parts side of the board,
+   lined up hole on hole; push the parts through the paper. Copy B is the solder side seen from below.
+2. **Parts side, zoomed**: where every part, header and wire pad goes, with the pin names.
+3. **Solder side, zoomed** (board turned over): every bare-wire trail, coloured by net, and the insulated wires W1-W4.
+4. **Build checklist**: the parts with their holes and every trail, corner by corner.
+5. **Wires, meter checks, first power-up, test.**
+6. **Off-board wiring**: battery, SW1, F1 10 A, F2 3 A (in the BAT+ wire), BTS7960 with C1, trigger board, LM2596,
+   DC jack, charger.
+7. **Complete parts list**: everything to buy, with quantities (also in `ThermoX_Final_Components.txt`).
 
 To keep the board small, the Peltier current does not go through it: battery -> SW1 (on the case) -> inline 10 A fuse
 -> BTS7960 B+, with C1 2200 uF screwed into the BTS7960 B+/B- terminals. The board takes 12 V after the fuse (POWER),
 the battery + for the gauge and charging (B2), and the charger (CHARGE). The DS18B20 runs from 3.3 V here.
 The 1N5822 legs are thick: open their four holes to 1.5 mm.
 
-`python3 make_thermox_perfboard.py` (needs matplotlib) rebuilds both PDFs and checks them: no hole shared by two nets,
+`python3 make_thermox_perfboard.py` (needs matplotlib) rebuilds both PDFs and checks them: the ESP32 pins on the
+board are the `PIN_...` values in `ThermoX/ThermoX.ino`, every part is wired as in the schematic, no hole shared by two nets,
 every net in one piece, no part body over another or over a pin, nothing under the ESP32 antenna, and no ground hole
 next to the battery + net (it has no fuse). Not built yet: lay the parts on the board before soldering.
 
