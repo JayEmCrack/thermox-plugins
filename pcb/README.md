@@ -1,3 +1,26 @@
+# ThermoX on a universal PCB (perfboard, 5 x 7 cm)
+
+`thermox_perfboard_5x7_rows25.4.pdf` and `thermox_perfboard_5x7_rows22.86.pdf` build the same circuit on a ready-made
+5 x 7 cm universal PCB (18 x 24 holes, 2.54 mm), with no etching. They use the current firmware pins: Button 1 GPIO18,
+Button 2 GPIO33, fan FG GPIO35, battery gauge GPIO36 (VP), charger detect GPIO19. Pick the PDF that matches your ESP32
+pin rows (25.4 mm or 22.86 mm).
+
+The holes are named like a chess board: columns A-R, rows 1-24. Each PDF has five pages:
+1. **Parts side**: where every part, header and wire pad goes, with the pin names.
+2. **Solder side** (board turned over): every bare-wire trail, coloured by net, and the four insulated wires W1-W4.
+3. **Build steps**: a checklist of the parts with their holes and of every trail, corner by corner.
+4. **Wires, meter checks, first power-up, test.**
+5. **Off-board wiring** (battery, switch, fuse, BTS7960 with C1, trigger board, LM2596, DC jack, charger) and parts.
+
+To keep the board small, the Peltier current does not go through it: battery -> SW1 (on the case) -> inline 10 A fuse
+-> BTS7960 B+, with C1 2200 uF screwed into the BTS7960 B+/B- terminals. The board takes 12 V after the fuse (POWER),
+the battery + for the gauge and charging (B2), and the charger (CHARGE). The DS18B20 runs from 3.3 V here.
+The 1N5822 legs are thick: open their four holes to 1.5 mm.
+
+`python3 make_thermox_perfboard.py` (needs matplotlib) rebuilds both PDFs and checks them: no hole shared by two nets,
+every net in one piece, no part body over another or over a pin, nothing under the ESP32 antenna, and no ground hole
+next to the battery + net (it has no fuse). Not built yet: lay the parts on the board before soldering.
+
 # ThermoX one-board PCB (recommended): everything on one 82 mm round board
 
 `thermox_onepcb_round82_rows25.4.pdf` and `thermox_onepcb_round82_rows22.86.pdf` put the controller and the power
