@@ -637,7 +637,7 @@ def true_template(ax, b, left, top, side):
                         weight="bold", zorder=7)
             elif k in ("res", "cap"):
                 (ha, _, _), (hc, _, _) = p["pins"]
-                txt = p["ref"] if k == "cap" else f"{p['ref']} {p['label']}"
+                txt = "C4 104" if k == "cap" else f"{p['ref']} {p['label']}"
                 ax.text(cx, cy, txt, fontsize=3.1, ha="center", va="center", weight="bold",
                         zorder=7, rotation=90 if ha[0] == hc[0] else 0)
             elif k == "resup":
@@ -742,6 +742,13 @@ def truesize_page(pdf, b, tag):
         ax.text(14, yy - i * 4.2, f"{k}:", fontsize=7, weight="bold", va="top")
         ax.text(38, yy - i * 4.2, d, fontsize=7, va="top")
     yy -= 5 * 4.2 + 3
+    ax.add_patch(Rectangle((12, yy - 13), 186, 15, fc="#fff3cd", ec="#b26a00", lw=0.8))
+    ax.text(15, yy, "TWO CAPACITORS:", fontsize=7.5, weight="bold", va="top")
+    ax.text(15, yy - 4.3, "C4 = 100 nF ceramic (marked 104), ON this board in D12 and F12 (blue, under the ESP32). "
+            "No + or -, any direction.", fontsize=7, va="top")
+    ax.text(15, yy - 8.6, "C1 = 2200 uF 25 V electrolytic, NOT on this board: screw it into the BTS7960 B+ and B- "
+            "terminals, stripe (-) to B-. See page 6.", fontsize=7, va="top")
+    yy -= 19
     items = [("GND", "ground"), ("BUS", "12 V"), ("BAT+", "battery +"), ("CHG", "charger +"), ("5V", "5 V"),
              ("3V3", "3.3 V"), ("SIG", "signals")]
     for i, (n, d) in enumerate(items):
@@ -883,8 +890,11 @@ def wiring_page(pdf, b, tag):
     box(8, 236, 32, 24, "3S2P battery\n21700 x 6\n+ 3S BMS\n(P+  P-)", fc="#fff3cd", bold=True)
     box(66, 242, 30, 16, "SW1 toggle ON-OFF-ON\n10 A, on the case\nBATT | OFF | USB", fc="#e3f2fd")
     box(108, 244, 28, 12, "F1 inline fuse\n10 A slow-blow", fc="#fde2e2")
-    box(148, 236, 32, 26, "BTS7960\nB+  B-\n\nC1 2200 uF 25 V\nscrewed in with\nB+ (+) and B- (-)",
-        fc="#e8f5e9")
+    box(148, 236, 32, 26, "BTS7960\nB+  B-", fc="#e8f5e9", bold=True)
+    box(150, 266, 30, 8, "C1 2200 uF 25 V", fc="#fff3cd", bold=True)
+    ax.annotate("", xy=(164, 262.5), xytext=(164, 266), arrowprops=dict(arrowstyle="->", lw=1.2))
+    ax.text(146, 270, "C1 legs go into the B+ / B- screws\nwith the thick wires, stripe (-) to B-", fontsize=5.6,
+            va="center", ha="right")
     box(186, 243, 18, 14, "Peltier\nTEC1-12706", fc="#e8f5e9")
     box(66, 204, 30, 12, "USB-C trigger board\nset to 12 V", fc="#e3f2fd")
     box(100, 162, 52, 34, "THIS BOARD\nPOWER  E2 = GND, G2 = 12V\nB2 = BAT+ wire\nCHARGE  K2 = +, M2 = -\n"
