@@ -160,20 +160,20 @@ def design(spacing):
     header("BTN1", "BTN1", ["P16", "Q16"], ["BTN1", "GND"], ["B1", "GND"])
     header("TEMP", "TEMP", ["P20", "Q20", "R20"], ["DQ", "GND", "3V3"], ["DQ", "GND", "VCC"])
     res("R5", "100k", "O19", "O15", "CHG", "CHGS")
-    b.part(ref="R6", kind="resup", label="33k", pins=[(H("P15"), "CHGS", "1"), (H("Q15"), "GND", "2")],
-           body=(15.5, 14.5, 16.5, 15.5))
+    res("R6", "33k", "N15", "N20", "CHGS", "GND")
     t("3V3", (X, 24), "R24", "R12")
     t("GND", (X, 23), "Q23", "Q11")
     t("PWM", (X, 10), "O10", "O8")
     t("SCL", (X, 11), "P11", "P12")
     t("SDA", (X, 14), "O14", "O12")
-    t("CHGS", (X, 15), "P15")
+    t("CHGS", (X, 15), "O15")
+    t("GND", "N20", "N23")
     t("BTN1", (X, 16), "P16")
     # ---- insulated wires on the bottom (they may cross trails; keep them away from the antenna end)
     b.wire("W1", "GND", "A15", "F15", [], "button 2 GND")
     b.wire("W2", "FG", "B14", "Q8", [(2.4, 13.5), (X + 0.65, 13.5), (X + 0.65, 9.7), (17.0, 9.7)], "fan tach", 1)
     b.wire("W3", "DQ", "D19", "P20", [(4.0, 18.5), (X + 0.65, 18.5), (X + 0.65, 20.5), (16.0, 20.5)], "temp sensor data", 1)
-    b.wire("W4", "CHG", "K4", "O19", [(11.0, 3.6), (X + 1.35, 3.6), (X + 1.35, 19.5), (15.0, 19.5)], "charger detect", 2)
+    b.wire("W4", "CHG", "K4", "O19", [(11.0, 3.6), (X + 1.5, 3.6), (X + 1.5, 19.5), (15.0, 19.5)], "charger detect", 2)
     return b
 
 
@@ -489,7 +489,7 @@ def top_page(pdf, b, tag):
         "R1, R2, R4, C4 lie FLAT under the ESP32 (between the two header rows): solder them before the female headers.",
         "D1, D2 (1N5822): the grey band (stripe) is the cathode. D2 stripe at D5, D1 stripe at P5. Their legs are thick:",
         "    open holes D5, J5, K5, P5 with a 1.5 mm drill bit.",
-        "R6 stands up: body over P15, the other leg bent down into Q15.",
+        "R5 and R6 lie flat side by side: R6 from N15 to N20, R5 from O15 to O19.",
         "FAN, OLED, TEMP and BTN1 headers lie ACROSS (left to right). Read the pin names under each pin.",
         "Nothing under the ESP32 antenna (hatched area): no parts and no trails.",
     ]
@@ -770,7 +770,7 @@ PLACE = [
     ("4", "C4 100 nF", "D12 and F12", "under the ESP32, keep it low"),
     ("5", "R3 100k", "B4 to B8", "flat, along column B"),
     ("6", "R5 100k", "O15 to O19", "flat, along column O"),
-    ("7", "R6 33k", "P15 (body) and Q15", "standing"),
+    ("7", "R6 33k", "N15 to N20", "flat, along column N"),
     ("8", "D2 1N5822", "J5 to D5", "stripe at D5 (open the holes to 1.5 mm)"),
     ("9", "D1 1N5822", "K5 to P5", "stripe at P5 (open the holes to 1.5 mm)"),
     ("10", "ESP32 female headers 1x15", "C10-C24 and {R}10-{R}24", "plug the ESP32 in them to align, then solder"),
