@@ -747,7 +747,7 @@ def truesize_page(pdf, b, tag):
     ax.text(15, yy - 4.3, "C4 = 100 nF ceramic (marked 104), ON this board in D12 and F12 (blue, under the ESP32). "
             "No + or -, any direction.", fontsize=7, va="top")
     ax.text(15, yy - 8.6, "C1 = 2200 uF 25 V electrolytic, NOT on this board: screw it into the BTS7960 B+ and B- "
-            "terminals, stripe (-) to B-. See page 6.", fontsize=7, va="top")
+            "terminals, stripe (-) to B-. See the wiring diagram, page 6.", fontsize=7, va="top")
     yy -= 19
     items = [("GND", "ground"), ("BUS", "12 V"), ("BAT+", "battery +"), ("CHG", "charger +"), ("5V", "5 V"),
              ("3V3", "3.3 V"), ("SIG", "signals")]
@@ -848,7 +848,7 @@ def steps2_page(pdf, b, tag):
     ]:
         line(t, family="monospace", fs=6.6)
     y -= 1.5
-    head("F. OFF-BOARD WIRING (page 6, fuses and fan on page 7), then FIRST POWER-UP without the ESP32")
+    head("F. WIRING DIAGRAMS (pages 6-8, fuses on page 9), then FIRST POWER-UP without the ESP32")
     for t in [
         "[ ] Set the LM2596 to 5.0 V with a meter BEFORE wiring it. Set the USB-C trigger board to 12 V and measure it.",
         "[ ] Wire the LM2596: IN+ to I2, OUT+ to B24, OUT- to B23 (its IN- is the same as OUT-, no wire needed).",
@@ -871,77 +871,274 @@ def steps2_page(pdf, b, tag):
     pdf.savefig(fig); plt.close(fig)
 
 
-def wiring_page(pdf, b, tag):
-    fig, ax = page(pdf, f"ThermoX UNIVERSAL PCB - 6. OFF-BOARD WIRING  [{tag}]")
+# ------------------------------------------------------------------ wiring diagrams (landscape)
+RED, BLK, ORG, PNK, BRN = "#d62728", "#222222", "#ff7f0e", "#e377c2", "#8c564b"
 
-    def box(x, y, w, h, t, fc="#f1f3f5", fs=6.6, bold=False):
-        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.6", fc=fc, ec="0.35", lw=0.8))
-        ax.text(x + w / 2, y + h / 2, t, ha="center", va="center", fontsize=fs, weight="bold" if bold else None)
 
-    def wire(pts, color, lw=1.6, label=None, lpos=0.5, ls="-", at=None):
+def land(pdf, title, sub=None):
+    fig = plt.figure(figsize=(297 / 25.4, 210 / 25.4))
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, 297); ax.set_ylim(0, 210); ax.axis("off")
+    ax.text(148.5, 202, title, ha="center", fontsize=13, weight="bold")
+    if sub:
+        ax.text(148.5, 196, sub, ha="center", fontsize=7.5, color="0.25")
+    return fig, ax
+
+
+class Draw:
+    def __init__(self, ax):
+        self.ax = ax
+
+    def box(self, x0, y0, x1, y1, title, fc, fs=7.5, ty=None):
+        self.ax.add_patch(FancyBboxPatch((x0, y0), x1 - x0, y1 - y0, boxstyle="round,pad=0.6", fc=fc, ec="0.25",
+                                         lw=1.0, zorder=2))
+        self.ax.text((x0 + x1) / 2, ty if ty is not None else (y0 + y1) / 2, title, ha="center", va="center",
+                     fontsize=fs, weight="bold", zorder=3)
+
+    def term(self, x, y, label, side, color="black"):
+        """a terminal on a part: dot plus label inside the part"""
+        self.ax.add_patch(Circle((x, y), 1.25, fc="#ffd54f", ec="black", lw=0.7, zorder=6))
+        dx = {"l": 2.4, "r": -2.4, "t": 0, "b": 0}[side]
+        dy = {"l": 0, "r": 0, "t": -2.6, "b": 2.6}[side]
+        ha = {"l": "left", "r": "right", "t": "center", "b": "center"}[side]
+        va = {"l": "center", "r": "center", "t": "top", "b": "bottom"}[side]
+        self.ax.text(x + dx, y + dy, label, fontsize=6.3, ha=ha, va=va, weight="bold", color=color, zorder=7)
+
+    def wire(self, pts, color, lw, num=None, at=None, dot=()):
         xs, ys = zip(*pts)
-        ax.plot(xs, ys, ls, color=color, lw=lw, solid_capstyle="round")
-        if label:
-            i = max(1, int(len(pts) * lpos))
-            lx, ly = at or ((pts[i - 1][0] + pts[i][0]) / 2, (pts[i - 1][1] + pts[i][1]) / 2 + 1.4)
-            ax.text(lx, ly, label, fontsize=5.4,
-                    ha="center", color=color, weight="bold", bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.9))
-    R, K, O, P = "#d62728", "#222222", "#ff7f0e", "#e377c2"
-    box(8, 236, 32, 24, "3S2P battery\n21700 x 6\n+ 3S BMS\n(P+  P-)", fc="#fff3cd", bold=True)
-    box(66, 242, 30, 16, "SW1 toggle ON-OFF-ON\n10 A, on the case\nBATT | OFF | USB", fc="#e3f2fd")
-    box(108, 244, 28, 12, "F1 inline fuse\n10 A slow-blow", fc="#fde2e2")
-    box(148, 236, 32, 26, "BTS7960\nB+  B-", fc="#e8f5e9", bold=True)
-    box(150, 266, 30, 8, "C1 2200 uF 25 V", fc="#fff3cd", bold=True)
-    ax.annotate("", xy=(164, 262.5), xytext=(164, 266), arrowprops=dict(arrowstyle="->", lw=1.2))
-    ax.text(146, 270, "C1 legs go into the B+ / B- screws\nwith the thick wires, stripe (-) to B-", fontsize=5.6,
-            va="center", ha="right")
-    box(186, 243, 18, 14, "Peltier\nTEC1-12706", fc="#e8f5e9")
-    box(66, 204, 30, 12, "USB-C trigger board\nset to 12 V", fc="#e3f2fd")
-    box(100, 162, 52, 34, "THIS BOARD\nPOWER  E2 = GND, G2 = 12V\nB2 = BAT+ wire\nCHARGE  K2 = +, M2 = -\n"
-        "LM2596  I2 = IN+, B24 = OUT+,\nB23 = OUT-", fc="#f6efd9", bold=True, fs=6.4)
-    box(162, 170, 42, 16, "LM2596S module\nset to 5.0 V first", fc="#efebe9")
-    box(52, 168, 30, 12, "DC jack 5.5x2.1\non the case", fc="#fce4ec")
-    box(8, 168, 32, 12, "12.6 V 2 A Li-ion\ncharger (3S)", fc="#fce4ec")
-    wire([(40, 254), (66, 254)], R, 2.8, "P+ to BATT  1.5 mm2")
-    wire([(96, 250), (108, 250)], R, 2.8, "COM")
-    wire([(136, 250), (148, 250)], R, 2.8, "1.5 mm2")
-    wire([(142, 250), (142, 196)], R, 1.6, "12V to G2\n0.75 mm2", 0.5)
-    wire([(81, 216), (81, 242)], R, 2.0, "12V to USB lug", at=(88, 236))
-    wire([(24, 236), (24, 228), (164, 228), (164, 236)], K, 2.8, "P- to BTS7960 B-  1.5 mm2", 0.5, at=(106, 229.6))
-    wire([(124, 228), (124, 196)], K, 1.6, "P- to E2\n0.75 mm2", 0.5)
-    wire([(72, 216), (72, 228)], K, 1.6)
-    ax.text(70.5, 220, "trigger -", fontsize=5.4, ha="right", color=K, weight="bold")
-    wire([(40, 242), (48, 242), (48, 190), (100, 190)], O, 1.6, "BAT+ to B2  0.75 mm2", 0.8)
-    box(41, 198, 16, 10, "F2 inline\nfuse 3 A", fc="#fde2e2", fs=6)
-    wire([(40, 174), (52, 174)], P, 1.6, "+ / -")
-    wire([(82, 174), (100, 174)], P, 1.6, "K2 / M2")
-    wire([(152, 178), (162, 178)], "#8c564b", 1.6, "3 wires")
-    wire([(180, 250), (186, 250)], "#555", 2.8)
-    ax.text(183, 253, "M+ M-", fontsize=5.4, ha="center", color="#555", weight="bold")
-    ax.text(10, 152, "Headers to the parts (Dupont wires):", fontsize=8, weight="bold")
-    hdrs = [
-        "FAN (O8-R8): O8 PWM blue, P8 12V red, Q8 FG yellow, R8 GND black (SUNON 4-wire fan, see page 7).",
-        "OLED (O12-R12): SDA, SCL, GND, VCC (3.3 V). Match the names printed on the OLED, not the order.",
-        "TEMP (P20-R20): DQ yellow, GND black, VCC red (DS18B20 probe).",
-        "BTN1 (P16-Q16) and BTN2 (A15-A16): one button leg to B1/B2, the other to GND.",
-        "BTS A (A17-A19): R_EN, RPWM, LPWM.   BTS B (A22-A24): L_EN, GND, VCC (5 V). R_IS and L_IS stay open.",
-    ]
-    yy = 146
-    for h in hdrs:
-        ax.text(12, yy, h, fontsize=6.8, va="top"); yy -= 4.2
-    yy -= 3
-    ax.text(10, yy, "Safety", fontsize=8, weight="bold"); yy -= 5
-    safety = [
-        "The Peltier current (up to about 7 A) goes battery -> SW1 -> fuse -> BTS7960 with thick wire. It does NOT go through this board.",
-        "B2 (BAT+) comes straight from the battery: put the 3 A inline fuse F2 in that wire, close to the battery.",
-        "The BTS7960 logic pins come from the BTS A and BTS B headers (6 Dupont wires). Its B+/B- take only the thick wires.",
-        "Only one source at a time: never plug the USB-C charger and the DC charger in together.",
-        "Charge with SW1 in the middle (OFF). Use a 12.6 V (3S) charger only, never 21 V.",
-        "Trigger board at 12 V only. On USB-C keep the Peltier at 40-60 % (phone slider). SW1 must be rated 10 A or more.",
-        "Not built and tested yet: lay the parts on the board before soldering and check every step with a meter.",
-    ]
-    for t in safety:
-        ax.text(12, yy, t, fontsize=6.7, va="top"); yy -= 4.1
+        self.ax.plot(xs, ys, color="white", lw=lw + 3.2, solid_capstyle="butt", zorder=4)
+        self.ax.plot(xs, ys, color=color, lw=lw, solid_capstyle="round", zorder=5)
+        for d in dot:
+            self.ax.add_patch(Circle(d, 1.3, fc=color, ec="black", lw=0.5, zorder=8))
+        if num is not None:
+            if at is None:
+                i = len(pts) // 2
+                at = ((pts[i - 1][0] + pts[i][0]) / 2, (pts[i - 1][1] + pts[i][1]) / 2)
+            self.ax.add_patch(Circle(at, 2.6, fc="white", ec=color, lw=1.4, zorder=9))
+            self.ax.text(at[0], at[1], str(num), ha="center", va="center", fontsize=6.8, weight="bold", zorder=10)
+
+    def fuse(self, x, y, name, amp):
+        ax = self.ax
+        ax.add_patch(FancyBboxPatch((x - 9, y - 2.6), 18, 5.2, boxstyle="round,pad=0.4", fc="#fde2e2", ec="0.2",
+                                    lw=1.0, zorder=11))
+        ax.add_patch(Rectangle((x - 5, y - 1.0), 10, 2.0, fc="white", ec="0.4", lw=0.5, zorder=12))
+        ax.text(x, y + 4.6, f"{name} {amp}", ha="center", fontsize=7, weight="bold", color="#b71c1c", zorder=12)
+        ax.text(x, y - 5.0, "inline fuse", ha="center", fontsize=5.3, color="0.3", zorder=12)
+
+
+# power wires: number, from, to, size, colour, note
+POWER_WIRES = [
+    (1, "Battery P+ (BMS)", "SW1 BATT lug", "1.5 mm2", "red", ""),
+    (2, "SW1 COM (middle lug)", "F1 10 A -> BTS7960 B+", "1.5 mm2", "red", "F1 inline in this wire"),
+    (3, "Wire 2 after F1 (splice)", "Board POWER 12V (G2)", "0.75 mm2", "red", "solder + heat-shrink the splice"),
+    (4, "Trigger board +", "SW1 USB lug", "1 mm2", "red", ""),
+    (5, "Trigger board -", "Battery P- (BMS)", "1 mm2", "black", "Peltier current on USB-C"),
+    (6, "Battery P- (BMS)", "BTS7960 B-", "1.5 mm2", "black", ""),
+    (7, "Battery P- (BMS)", "Board POWER GND (E2)", "0.75 mm2", "black", ""),
+    (8, "Battery P+ (BMS)", "F2 3 A -> Board BAT+ (B2)", "0.75 mm2", "orange", "F2 within 5 cm of P+"),
+    (9, "BTS7960 M+ and M-", "Peltier red and black", "Peltier wires", "red/black",
+     "swap them if it heats when it should cool"),
+    (10, "C1 2200 uF + leg / stripe (-) leg", "BTS7960 B+ / B-", "C1 legs", "-", "in the screws with wires 2 and 6"),
+    (11, "DC jack centre (+) / sleeve (-)", "Board CHARGE + (K2) / - (M2)", "0.5-0.75 mm2", "pink/black", ""),
+    (12, "LM2596 IN+", "Board LM2596 IN+ (I2)", "0.5 mm2", "red", ""),
+    (13, "LM2596 OUT-", "Board B23", "0.5 mm2", "black", "LM2596 IN- needs no wire (same as OUT-)"),
+    (14, "LM2596 OUT+", "Board B24 (5 V)", "0.5 mm2", "brown", "set the LM2596 to 5.0 V first"),
+]
+
+
+def power_diagram_page(pdf, tag):
+    fig, ax = land(pdf, f"ThermoX WIRING DIAGRAM 1 - POWER  [{tag}]",
+                   "Thick lines = 1.5 mm2 (Peltier current). Dots = joined. Numbers = wire list on the next page. "
+                   "Lines that cross without a dot are NOT joined.")
+    d = Draw(ax)
+    # parts
+    d.box(15, 95, 60, 140, "", "#fff3cd")
+    for i in range(3):
+        for j in range(2):
+            ax.add_patch(FancyBboxPatch((19 + i * 11, 101 + j * 14), 8, 11, boxstyle="round,pad=0.3", fc="#90caf9",
+                                        ec="0.3", lw=0.6, zorder=3))
+    ax.add_patch(Rectangle((52, 98), 6, 39, fc="#2e7d32", ec="black", lw=0.6, zorder=3))
+    ax.text(33, 132.5, "BATTERY 3S2P", ha="center", fontsize=6.5, weight="bold", zorder=4)
+    ax.text(55, 117.5, "BMS", rotation=90, ha="center", va="center", fontsize=6, color="white", weight="bold", zorder=4)
+    d.term(55, 140, "P+", "b"); d.term(15, 108, "P-", "l")
+    d.box(20, 165, 50, 182, "USB-C trigger\nboard (12 V)", "#e3f2fd", fs=6.6)
+    d.term(50, 176, "+", "r"); d.term(20, 170, "-", "l")
+    d.box(70, 150, 86, 186, "", "#e3f2fd")
+    ax.text(78, 189.5, "SW1 ON-OFF-ON 10 A", ha="center", fontsize=6.8, weight="bold")
+    ax.plot([78, 82], [180, 185], color="0.2", lw=2, zorder=3)
+    d.term(70, 176, "USB", "l"); d.term(70, 158, "BATT", "l"); d.term(86, 168, "COM", "r")
+    ax.text(78, 153, "COM =\nmiddle lug", ha="center", fontsize=4.8, zorder=4)
+    d.box(190, 125, 240, 182, "BTS7960\n(IBT-2)", "#e8f5e9", ty=170)
+    d.term(190, 168, "B+", "l"); d.term(190, 140, "B-", "l"); d.term(240, 168, "M+", "r"); d.term(240, 140, "M-", "r")
+    ax.text(215, 129, "8-pin header:\nsee diagram 2", ha="center", fontsize=5.6, zorder=4)
+    d.box(255, 138, 287, 172, "PELTIER\nTEC1-12706", "#b2dfdb")
+    ax.text(271, 132, "swap the 2 wires if it\nheats when it should cool", ha="center", fontsize=5.5)
+    d.box(115, 35, 175, 95, "THERMOX\nBOARD\n(universal PCB)", "#f6efd9", fs=8.5, ty=72)
+    for x, y, lab, side in [(115, 88, "B2  BAT+", "l"), (115, 78, "E2  POWER GND", "l"), (115, 66, "I2  LM IN+", "l"),
+                            (115, 52, "B23  LM OUT-", "l"), (115, 46, "B24  LM OUT+", "l"), (140, 95, "G2  POWER 12V", "t"),
+                            (175, 70, "K2  CHARGE +", "r"), (175, 60, "M2  CHARGE -", "r")]:
+        d.term(x, y, lab, side)
+    d.box(62, 38, 96, 72, "LM2596S\n5.0 V", "#efebe9", ty=62)
+    d.term(96, 66, "IN+", "r"); d.term(96, 59, "IN-", "r"); d.term(96, 52, "OUT-", "r"); d.term(96, 46, "OUT+", "r")
+    ax.text(99, 57.2, "no wire", fontsize=4.8, color="0.4")
+    d.box(200, 52, 226, 78, "DC jack\n5.5 x 2.1\n(on the case)", "#fce4ec", fs=6.3)
+    d.term(200, 70, "centre +", "l"); d.term(200, 60, "sleeve -", "l")
+    d.box(243, 52, 287, 78, "Li-ion charger\n12.6 V 2 A (3S)\nNOT 21 V", "#fce4ec", fs=6.5)
+    ax.plot([226, 243], [65, 65], color="0.3", lw=2.4, zorder=1)
+    ax.text(234.5, 67.5, "plug", fontsize=5.5, ha="center")
+    # C1 on the BTS7960 B+ / B- screws
+    ax.add_patch(FancyBboxPatch((172, 147), 9, 14, boxstyle="round,pad=0.3", fc="#37474f", ec="black", lw=0.6,
+                                zorder=11))
+    ax.add_patch(Rectangle((172.3, 147.2), 8.4, 3, fc="#cfd8dc", ec="none", zorder=12))
+    ax.text(176.5, 155.5, "C1", color="white", fontsize=6, ha="center", va="center", weight="bold", zorder=12)
+    ax.text(146, 152, "C1 2200 uF 25 V:\n+ leg to B+,\nstripe (-) leg to B-", fontsize=5.5, ha="right", va="center")
+    # wires
+    d.wire([(55, 140), (55, 158), (70, 158)], RED, 3.0, 1, (55, 150), dot=[(55, 140)])
+    d.wire([(86, 168), (190, 168)], RED, 3.0, 2, (95, 168))
+    d.fuse(112, 168, "F1", "10 A slow-blow")
+    d.wire([(150, 168), (150, 102), (140, 102), (140, 95)], RED, 1.8, 3, (150, 120), dot=[(150, 168)])
+    d.wire([(50, 176), (70, 176)], RED, 2.4, 4, (60, 176))
+    d.wire([(20, 170), (9, 170), (9, 108)], BLK, 2.4, 5, (9, 150))
+    d.wire([(15, 108), (9, 108), (9, 22), (183, 22), (183, 140), (190, 140)], BLK, 3.0, 6, (100, 22),
+           dot=[(9, 108)])
+    d.wire([(9, 78), (115, 78)], BLK, 1.8, 7, (35, 78), dot=[(9, 78)])
+    d.wire([(55, 140), (100, 140), (100, 88), (115, 88)], ORG, 1.8, 8, (100, 115))
+    d.fuse(78, 140, "F2", "3 A slow-blow")
+    d.wire([(176.5, 161), (176.5, 168)], RED, 1.2, dot=[(176.5, 168)])
+    d.wire([(176.5, 147), (176.5, 140), (183, 140)], BLK, 1.2, dot=[(183, 140)])
+    d.wire([(240, 168), (248, 168), (248, 163), (255, 163)], RED, 2.0)
+    d.wire([(240, 140), (248, 140), (248, 147), (255, 147)], BLK, 2.0, 9, (248, 155))
+    d.wire([(175, 70), (200, 70)], PNK, 1.8, 11, (191, 70))
+    d.wire([(175, 60), (200, 60)], BLK, 1.8)
+    d.wire([(96, 66), (115, 66)], RED, 1.2, 12, (106, 66))
+    d.wire([(96, 52), (115, 52)], BLK, 1.2, 13, (106, 52))
+    d.wire([(96, 46), (115, 46)], BRN, 1.2, 14, (106, 45.5))
+    ax.text(8, 12, "Before the battery goes on: SW1 in the middle (OFF), fuses in, LM2596 set to 5.0 V, trigger board "
+            "set to 12 V. Never plug the USB-C charger and the DC charger in at the same time.", fontsize=7,
+            weight="bold", color="#b71c1c")
+    pdf.savefig(fig); plt.close(fig)
+
+
+# signal wires: board pin (hole), name, goes to, note
+SIGNAL_WIRES = [
+    ("FAN", [("O8", "PWM", "fan BLUE wire"), ("P8", "12V", "fan RED wire"), ("Q8", "FG", "fan YELLOW wire"),
+             ("R8", "GND", "fan BLACK wire")]),
+    ("OLED", [("O12", "SDA", "OLED SDA"), ("P12", "SCL", "OLED SCL"), ("Q12", "GND", "OLED GND"),
+              ("R12", "VCC", "OLED VCC (3.3 V)")]),
+    ("BTN1", [("P16", "B1", "button 1 (DOWN), one leg"), ("Q16", "GND", "button 1, other leg")]),
+    ("TEMP", [("P20", "DQ", "DS18B20 YELLOW (data)"), ("Q20", "GND", "DS18B20 BLACK"), ("R20", "VCC", "DS18B20 RED")]),
+    ("BTN2", [("A15", "GND", "button 2, other leg"), ("A16", "B2", "button 2 (UP), one leg")]),
+    ("BTS A", [("A17", "R_EN", "BTS7960 R_EN"), ("A18", "RPWM", "BTS7960 RPWM"), ("A19", "LPWM", "BTS7960 LPWM")]),
+    ("BTS B", [("A22", "L_EN", "BTS7960 L_EN"), ("A23", "GND", "BTS7960 GND"), ("A24", "VCC", "BTS7960 VCC (5 V)")]),
+]
+DUP = ["#1f77b4", "#d62728", "#f1c40f", "#222222", "#2ca02c", "#9467bd", "#ff7f0e", "#8c564b", "#17becf"]
+
+
+def signal_diagram_page(pdf, tag):
+    fig, ax = land(pdf, f"ThermoX WIRING DIAGRAM 2 - HEADERS TO THE PARTS (Dupont wires)  [{tag}]",
+                   "Each line is one female-female Dupont wire. Connect by NAME: the order of the pins on a module "
+                   "can be different from the board.")
+    d = Draw(ax)
+    d.box(112, 28, 182, 186, "", "#f6efd9")
+    ax.text(147, 180, "THERMOX BOARD (parts side)", ha="center", fontsize=8, weight="bold", zorder=4)
+    ax.add_patch(Rectangle((126, 40), 42, 92, fc="none", ec="#1565c0", lw=1, ls="--", zorder=3))
+    ax.text(147, 86, "ESP32", ha="center", fontsize=10, color="#1565c0", weight="bold", zorder=4)
+    rows = {}
+    right = [("FAN", 168), ("OLED", 136), ("BTN1", 106), ("TEMP", 80)]
+    left = [("BTN2", 150), ("BTS A", 122), ("BTS B", 78)]
+    pins = {}
+    for name, y0 in right:
+        grp = dict(SIGNAL_WIRES)[name]
+        ax.text(178, y0 + 4, name, ha="right", fontsize=7, weight="bold", color="#2e7d32", zorder=4)
+        for i, (hole, pin, to) in enumerate(grp):
+            y = y0 - i * 5.2
+            d.term(182, y, f"{hole} {pin}", "r")
+            pins[(name, pin)] = (182, y)
+    for name, y0 in left:
+        grp = dict(SIGNAL_WIRES)[name]
+        ax.text(116, y0 + 4, name, ha="left", fontsize=7, weight="bold", color="#2e7d32", zorder=4)
+        for i, (hole, pin, to) in enumerate(grp):
+            y = y0 - i * 5.2
+            d.term(112, y, f"{hole} {pin}", "l")
+            pins[(name, pin)] = (112, y)
+    # modules on the right
+    d.box(222, 156, 262, 176, "FAN 40 x 40\nSUNON 12 V", "#e0e0e0", fs=6.5)
+    fan = {"PWM": (222, 171), "12V": (222, 167), "FG": (222, 163), "GND": (222, 159)}
+    fcol = {"PWM": "#1f77b4", "12V": RED, "FG": "#f1c40f", "GND": BLK}
+    for k, p in fan.items():
+        d.wire([pins[("FAN", k)], (205, pins[("FAN", k)][1]), (212, p[1]), p], fcol[k], 1.6)
+        ax.text(p[0] + 2, p[1], {"PWM": "blue", "12V": "red", "FG": "yellow", "GND": "black"}[k], fontsize=5.3,
+                va="center", zorder=7)
+    d.box(225, 116, 275, 146, "OLED 1.5 inch\nSH1107 I2C", "#263238", fs=6.5, ty=131)
+    ax.texts[-1].set_color("white")
+    oled = {"GND": (225, 141), "VCC": (225, 136), "SCL": (225, 131), "SDA": (225, 126)}
+    ocol = {"GND": BLK, "VCC": RED, "SCL": "#2ca02c", "SDA": "#9467bd"}
+    for k, p in oled.items():
+        d.term(*p, k, "l", color="white")
+        d.wire([pins[("OLED", k)], (200, pins[("OLED", k)][1]), (212, p[1]), p], ocol[k], 1.6)
+    ax.text(250, 108, "OLED pin order: GND VCC SCL SDA.\nThe wires cross: match the names.", ha="center", fontsize=5.6)
+    # button 1
+    for name, y0, xb in (("BTN1", 106, 232),):
+        ax.add_patch(Circle((xb, y0 - 2.6), 5, fc="#ef5350", ec="black", lw=0.8, zorder=3))
+        ax.text(xb, y0 - 2.6, "BTN1\nDOWN", ha="center", va="center", fontsize=5.3, weight="bold", zorder=4)
+        d.wire([pins[("BTN1", "B1")], (226, y0), (227.5, y0)], "#17becf", 1.6)
+        d.wire([pins[("BTN1", "GND")], (226, y0 - 5.2), (227.5, y0 - 5.2)], BLK, 1.6)
+    # DS18B20
+    d.box(232, 64, 284, 84, "DS18B20 probe\n(in the water)", "#cfd8dc", fs=6.5)
+    tcol = {"DQ": "#f1c40f", "GND": BLK, "VCC": RED}
+    for i, k in enumerate(("DQ", "GND", "VCC")):
+        p = pins[("TEMP", k)]
+        d.wire([p, (232, p[1])], tcol[k], 1.6)
+        ax.text(234, p[1], {"DQ": "yellow", "GND": "black", "VCC": "red"}[k], fontsize=5.3, va="center", zorder=7)
+    # left: button 2 and the BTS7960 control header
+    ax.add_patch(Circle((70, 147.4), 5, fc="#66bb6a", ec="black", lw=0.8, zorder=3))
+    ax.text(70, 147.4, "BTN2\nUP", ha="center", va="center", fontsize=5.3, weight="bold", zorder=4)
+    d.wire([pins[("BTN2", "GND")], (80, 150), (74.8, 150)], BLK, 1.6)
+    d.wire([pins[("BTN2", "B2")], (80, 144.8), (74.8, 144.8)], "#ff7f0e", 1.6)
+    d.box(14, 48, 58, 128, "BTS7960\nheader", "#e8f5e9", ty=122)
+    hdr = ["RPWM", "LPWM", "R_EN", "L_EN", "R_IS", "L_IS", "VCC", "GND"]
+    hp = {}
+    for i, k in enumerate(hdr):
+        y = 112 - i * 8
+        d.term(58, y, k, "r")
+        hp[k] = (58, y)
+    ax.text(36, 52, "R_IS, L_IS:\nleave empty", ha="center", fontsize=5.6, zorder=4)
+    bcol = {"R_EN": "#2ca02c", "RPWM": "#1f77b4", "LPWM": "#9467bd", "L_EN": "#17becf", "GND": BLK, "VCC": BRN}
+    lanes = {"R_EN": 68, "RPWM": 100, "LPWM": 92, "L_EN": 78, "GND": 96, "VCC": 86}
+    for grp in ("BTS A", "BTS B"):
+        for hole, pin, to in dict(SIGNAL_WIRES)[grp]:
+            k = pin
+            a = pins[(grp, k)]
+            bpt = hp[k]
+            x = lanes[k]
+            d.wire([a, (x, a[1]), (x, bpt[1]), bpt], bcol[k], 1.6)
+    ax.text(8, 12, "The BTS7960 B+, B-, M+ and M- screw terminals are on diagram 1 (thick wires). "
+            "Short Dupont wires are best: a loose plug can stop the fan or the driver.", fontsize=7)
+    pdf.savefig(fig); plt.close(fig)
+
+
+def wirelist_page(pdf, tag):
+    fig, ax = land(pdf, f"ThermoX WIRE LIST  [{tag}]", "Tick each wire when it is done.")
+    y = 188
+    ax.text(10, y, "POWER WIRES (diagram 1)", fontsize=9, weight="bold"); y -= 6
+    head = ["No.", "From", "To", "Wire", "Colour", "Note"]
+    xs = [12, 22, 82, 152, 178, 200]
+    for x, h in zip(xs, head):
+        ax.text(x, y, h, fontsize=7, weight="bold")
+    y -= 4.6
+    for n, a, b2, size, col, note in POWER_WIRES:
+        for x, t in zip(xs, [f"[ ] {n}", a, b2, size, col, note]):
+            ax.text(x, y, t, fontsize=6.6, va="center")
+        y -= 4.4
+    y -= 4
+    ax.text(10, y, "DUPONT WIRES (diagram 2)", fontsize=9, weight="bold"); y -= 6
+    col_x = [12, 102, 192]
+    items = [(g, h, p, t) for g, rows in SIGNAL_WIRES for h, p, t in rows]
+    per = (len(items) + 2) // 3
+    for i, (g, h, p, t) in enumerate(items):
+        cx = col_x[i // per]
+        yy = y - (i % per) * 4.4
+        ax.text(cx, yy, f"[ ] {g:<6} {h:<4} {p:<5} -> {t}", fontsize=6.4, family="monospace", va="center")
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -1007,7 +1204,7 @@ BOM = [
 
 
 def fuse_fan_page(pdf, tag):
-    fig, ax = page(pdf, f"ThermoX - 7. FUSES AND FAN WIRES  [{tag}]",
+    fig, ax = page(pdf, f"ThermoX - 9. FUSES AND FAN WIRES  [{tag}]",
                    "The fuses are NOT on the board on purpose: the Peltier current (up to 7 A) must not go through a perfboard.")
     RED, BLK, ORG = "#d62728", "#222222", "#ff7f0e"
 
@@ -1097,7 +1294,7 @@ def fuse_fan_page(pdf, tag):
 
 
 def bom_page(pdf, tag):
-    fig, ax = page(pdf, f"ThermoX - 8. COMPLETE PARTS LIST (everything to buy)  [{tag}]")
+    fig, ax = page(pdf, f"ThermoX - 10. COMPLETE PARTS LIST (everything to buy)  [{tag}]")
     y = 272
     for head, rows in BOM:
         ax.text(10, y, head, fontsize=8.5, weight="bold", va="top"); y -= 5
@@ -1130,10 +1327,18 @@ def main():
             bottom_page(pdf, b, tag)
             steps_page(pdf, b, tag)
             steps2_page(pdf, b, tag)
-            wiring_page(pdf, b, tag)
+            power_diagram_page(pdf, tag)
+            signal_diagram_page(pdf, tag)
+            wirelist_page(pdf, tag)
             fuse_fan_page(pdf, tag)
             bom_page(pdf, tag)
         print(f"rows {spacing} OK -> {os.path.basename(name)}  ({len(b.trails)} trails, {len(b.wires)} wires)")
+    with PdfPages(os.path.join(OUT, "thermox_wiring_diagram.pdf")) as pdf:     # the 3 wiring pages on their own
+        power_diagram_page(pdf, "universal PCB")
+        signal_diagram_page(pdf, "universal PCB")
+        wirelist_page(pdf, "universal PCB")
+        fuse_fan_page(pdf, "universal PCB")
+    print("wiring diagram -> thermox_wiring_diagram.pdf")
     sys.exit(0 if ok else 1)
 
 
