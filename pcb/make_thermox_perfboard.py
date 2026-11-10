@@ -848,7 +848,7 @@ def steps2_page(pdf, b, tag):
     ]:
         line(t, family="monospace", fs=6.6)
     y -= 1.5
-    head("F. OFF-BOARD WIRING (page 6), then FIRST POWER-UP without the ESP32")
+    head("F. OFF-BOARD WIRING (page 6, fuses and fan on page 7), then FIRST POWER-UP without the ESP32")
     for t in [
         "[ ] Set the LM2596 to 5.0 V with a meter BEFORE wiring it. Set the USB-C trigger board to 12 V and measure it.",
         "[ ] Wire the LM2596: IN+ to I2, OUT+ to B24, OUT- to B23 (its IN- is the same as OUT-, no wire needed).",
@@ -920,7 +920,7 @@ def wiring_page(pdf, b, tag):
     ax.text(183, 253, "M+ M-", fontsize=5.4, ha="center", color="#555", weight="bold")
     ax.text(10, 152, "Headers to the parts (Dupont wires):", fontsize=8, weight="bold")
     hdrs = [
-        "FAN (O8-R8): PWM blue, 12V red, FG yellow, GND black (SUNON 4-wire fan).",
+        "FAN (O8-R8): O8 PWM blue, P8 12V red, Q8 FG yellow, R8 GND black (SUNON 4-wire fan, see page 7).",
         "OLED (O12-R12): SDA, SCL, GND, VCC (3.3 V). Match the names printed on the OLED, not the order.",
         "TEMP (P20-R20): DQ yellow, GND black, VCC red (DS18B20 probe).",
         "BTN1 (P16-Q16) and BTN2 (A15-A16): one button leg to B1/B2, the other to GND.",
@@ -1006,8 +1006,98 @@ BOM = [
 ]
 
 
+def fuse_fan_page(pdf, tag):
+    fig, ax = page(pdf, f"ThermoX - 7. FUSES AND FAN WIRES  [{tag}]",
+                   "The fuses are NOT on the board on purpose: the Peltier current (up to 7 A) must not go through a perfboard.")
+    RED, BLK, ORG = "#d62728", "#222222", "#ff7f0e"
+
+    def box(x, y, w, h, t, fc, fs=7, bold=True):
+        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.5", fc=fc, ec="0.3", lw=0.9))
+        ax.text(x + w / 2, y + h / 2, t, ha="center", va="center", fontsize=fs, weight="bold" if bold else None)
+
+    def line(pts, c, lw, lab=None, at=None, fs=6):
+        xs, ys = zip(*pts)
+        ax.plot(xs, ys, color=c, lw=lw, solid_capstyle="round", zorder=1)
+        if lab:
+            ax.text(at[0], at[1], lab, fontsize=fs, ha="center", va="center", color=c, weight="bold",
+                    bbox=dict(fc="white", ec="none", pad=0.3))
+
+    def fuse(x, y, name, amp, c):
+        """inline 5 x 20 mm fuse holder drawn across a wire at (x, y)"""
+        ax.add_patch(FancyBboxPatch((x - 11, y - 3.2), 22, 6.4, boxstyle="round,pad=0.4", fc="#fde2e2", ec="0.25",
+                                    lw=1.0, zorder=3))
+        ax.add_patch(Rectangle((x - 6, y - 1.3), 12, 2.6, fc="white", ec="0.4", lw=0.6, zorder=4))
+        ax.plot([x - 6, x + 6], [y, y], color="0.4", lw=0.6, zorder=5)
+        ax.text(x, y + 5.6, f"{name}  {amp} slow-blow", ha="center", fontsize=7.5, weight="bold", color="#b71c1c")
+        ax.text(x, y - 6.0, "inline fuse holder 5 x 20", ha="center", fontsize=5.6, color="0.3")
+
+    # ---------------- F1: main 12 V line
+    ax.text(10, 268, "1. F1  10 A  - main 12 V line (Peltier, fan, board)", fontsize=9.5, weight="bold")
+    box(8, 236, 30, 22, "BATTERY\n3S2P + BMS\nP+   P-", "#fff3cd")
+    box(58, 238, 30, 18, "SW1\nON-OFF-ON 10 A\nBATT  COM  USB", "#e3f2fd", fs=6.6)
+    box(58, 210, 30, 12, "USB-C trigger\nboard 12 V", "#e3f2fd", fs=6.6)
+    box(150, 236, 34, 22, "BTS7960\nB+      B-\n(+ C1 2200 uF)", "#e8f5e9")
+    box(150, 202, 34, 14, "BOARD  POWER\nG2 = 12V   E2 = GND", "#f6efd9", fs=6.6)
+    line([(38, 252), (58, 252)], RED, 3, "P+ to BATT\n1.5 mm2", (48, 257))
+    line([(73, 222), (73, 238)], RED, 2.2, "to USB lug", (84, 234.5))
+    line([(88, 247), (106, 247)], RED, 3, "COM", (97, 250))
+    fuse(117, 247, "F1", "10 A", RED)
+    line([(128, 247), (150, 247)], RED, 3, "1.5 mm2", (140, 250))
+    line([(138, 247), (138, 212), (150, 212)], RED, 1.8, "splice: 0.75 mm2\nto G2", (128, 224))
+    ax.add_patch(Circle((138, 247), 1.3, fc=RED, ec="black", lw=0.5, zorder=6))
+    line([(20, 236), (20, 196), (167, 196), (167, 202)], BLK, 1.8, "P- to E2  0.75 mm2", (100, 196))
+    line([(30, 236), (30, 230), (192, 230), (192, 247), (184, 247)], BLK, 3, "P- to BTS7960 B-  1.5 mm2", (110, 230))
+    line([(64, 210), (64, 196)], BLK, 1.4, "trigger -", (56, 203))
+    ax.add_patch(Circle((64, 196), 1.0, fc=BLK, zorder=6))
+    ax.add_patch(Circle((20, 196), 1.0, fc=BLK, zorder=6))
+    # ---------------- F2: BAT+ wire to the board
+    ax.text(10, 184, "2. F2  3 A  - BAT+ wire to the board (battery gauge and charging)", fontsize=9.5, weight="bold")
+    box(8, 150, 30, 22, "BATTERY\n3S2P + BMS\nP+", "#fff3cd")
+    box(150, 152, 34, 18, "BOARD\nB2 = BAT+ wire\n(red ring, top left)", "#f6efd9", fs=6.6)
+    line([(38, 161), (66, 161)], ORG, 2.2, "short: 5 cm max", (52, 165))
+    fuse(77, 161, "F2", "3 A", ORG)
+    line([(88, 161), (150, 161)], ORG, 2.2, "0.75 mm2 to B2", (119, 165))
+    # ---------------- how to fit an inline fuse holder
+    y = 138
+    ax.text(10, y, "HOW TO FIT EACH INLINE FUSE HOLDER", fontsize=9.5, weight="bold"); y -= 6
+    for t in [
+        "1. Battery disconnected (or BMS off) while you wire. SW1 in the middle (OFF).",
+        "2. Cut the wire where the fuse goes. Strip 8 mm of each end and of both holder leads.",
+        "3. Slide heat-shrink on first, then twist each end to one holder lead, solder, and shrink the tube over the joint.",
+        "4. F1: the splice to G2 is on the BTS7960 side of F1 (after the fuse). Solder the 0.75 mm2 wire to the 1.5 mm2",
+        "   wire and cover it with heat-shrink. Both the BTS7960 and the board are then protected by F1.",
+        "5. F2: put it within 5 cm of the battery P+ so the whole thin wire to B2 is protected. Solder the F2 lead and",
+        "   the 1.5 mm2 SW1 wire both on the BMS P+ pad.",
+        "6. Put the fuses in: 10 A slow-blow in F1, 3 A slow-blow in F2. Never a bigger fuse, never a wire instead.",
+        "7. Check with a meter (fuses in, battery off): SW1 COM to G2 beeps (through F1); battery P+ to B2 beeps (through F2).",
+        "8. A fuse that blows means a short: find it before you put a new fuse in.",
+    ]:
+        ax.text(12, y, t, fontsize=7, va="top"); y -= 4.4
+    # ---------------- fan wires
+    y -= 4
+    ax.text(10, y, "FAN: SUNON 40 x 40 x 28 mm, 12 V, 4 wires -> FAN header O8-R8 (row 8, lies across)", fontsize=9.5,
+            weight="bold"); y -= 8
+    cols = [("O8", "PWM", "BLUE", "#1f77b4", "speed control, GPIO23"), ("P8", "12V", "RED", RED, "+12 V (after F1)"),
+            ("Q8", "FG", "YELLOW", "#f1c40f", "speed signal (rpm), GPIO35"), ("R8", "GND", "BLACK", BLK, "ground")]
+    for i, (hole, pin, colr, cc, use) in enumerate(cols):
+        x = 14 + i * 47
+        ax.add_patch(Rectangle((x, y - 7), 42, 13, fc="white", ec="0.5", lw=0.6))
+        ax.add_patch(Rectangle((x + 2, y - 1.6), 9, 3.2, fc=cc, ec="black", lw=0.4))
+        ax.text(x + 13, y + 0.5, f"{colr} -> {hole}", fontsize=7.5, weight="bold", va="center")
+        ax.text(x + 13, y - 4.2, f"{pin}: {use}", fontsize=5.8, va="center", color="0.25")
+    y -= 13
+    for t in [
+        "These are the usual SUNON 4-wire colours. Check the sticker or datasheet of YOUR fan first: some fans use",
+        "other colours. If the fan only has 3 wires (no blue), it has no PWM: leave O8 empty, it runs full speed whenever",
+        "12 V is on. With only 2 wires there is no FG either: set FAN_MIN_RPM = 0 in ThermoX.ino (stall check off).",
+        "The fan needs about 1 A at full speed. Use the Dupont cable only if it is short; a loose plug makes the fan stall.",
+    ]:
+        ax.text(12, y, t, fontsize=7, va="top"); y -= 4.4
+    pdf.savefig(fig); plt.close(fig)
+
+
 def bom_page(pdf, tag):
-    fig, ax = page(pdf, f"ThermoX - 7. COMPLETE PARTS LIST (everything to buy)  [{tag}]")
+    fig, ax = page(pdf, f"ThermoX - 8. COMPLETE PARTS LIST (everything to buy)  [{tag}]")
     y = 272
     for head, rows in BOM:
         ax.text(10, y, head, fontsize=8.5, weight="bold", va="top"); y -= 5
@@ -1041,6 +1131,7 @@ def main():
             steps_page(pdf, b, tag)
             steps2_page(pdf, b, tag)
             wiring_page(pdf, b, tag)
+            fuse_fan_page(pdf, tag)
             bom_page(pdf, tag)
         print(f"rows {spacing} OK -> {os.path.basename(name)}  ({len(b.trails)} trails, {len(b.wires)} wires)")
     sys.exit(0 if ok else 1)

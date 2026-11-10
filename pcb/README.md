@@ -5,7 +5,7 @@
 Button 2 GPIO33, fan FG GPIO35, battery gauge GPIO36 (VP), charger detect GPIO19. Pick the PDF that matches your ESP32
 pin rows (25.4 mm or 22.86 mm).
 
-The holes are named like a chess board: columns A-R, rows 1-24. Each PDF has seven pages:
+The holes are named like a chess board: columns A-R, rows 1-24. Each PDF has eight pages:
 1. **True size (1:1)**: print at 100 % (check the 50 mm bar), cut out copy A and tape it on the parts side of the board,
    lined up hole on hole; push the parts through the paper. Copy B is the solder side seen from below.
 2. **Parts side, zoomed**: where every part, header and wire pad goes, with the pin names.
@@ -14,7 +14,9 @@ The holes are named like a chess board: columns A-R, rows 1-24. Each PDF has sev
 5. **Wires, meter checks, first power-up, test.**
 6. **Off-board wiring**: battery, SW1, F1 10 A, F2 3 A (in the BAT+ wire), BTS7960 with C1, trigger board, LM2596,
    DC jack, charger.
-7. **Complete parts list**: everything to buy, with quantities (also in `ThermoX_Final_Components.txt`).
+7. **Fuses and fan wires**: how to fit F1 (10 A, main 12 V line) and F2 (3 A, BAT+ wire) inline, and which fan wire
+   colour goes to which FAN pin.
+8. **Complete parts list**: everything to buy, with quantities (also in `ThermoX_Final_Components.txt`).
 
 To keep the board small, the Peltier current does not go through it: battery -> SW1 (on the case) -> inline 10 A fuse
 -> BTS7960 B+, with C1 2200 uF screwed into the BTS7960 B+/B- terminals. The board takes 12 V after the fuse (POWER),

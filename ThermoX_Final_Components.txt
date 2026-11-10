@@ -1,5 +1,5 @@
 THERMOX - FINAL COMPONENTS LIST (universal PCB build)
-Everything to buy. Same list as page 7 of pcb/thermox_perfboard_5x7_rows*.pdf
+Everything to buy. Same list as page 8 of pcb/thermox_perfboard_5x7_rows*.pdf
 ===============================================================================
 
 ON THE UNIVERSAL PCB
