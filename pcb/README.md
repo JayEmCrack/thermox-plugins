@@ -22,6 +22,17 @@ The holes are named like a chess board: columns A-R, rows 1-24. Each PDF has ten
 
 `thermox_wiring_diagram.pdf` has pages 6-9 on their own, for printing.
 
+## Full board (7 x 9 cm) with the fuses and C1 on it
+
+`thermox_perfboard_7x9_full_rows25.4.pdf` is the same board on a 7 x 9 cm universal PCB (24 x 30 holes). Every part
+above keeps its holes; columns S-X and rows 25-30 are added for the power parts:
+- **F1** 10 A slow-blow in a PCB fuse holder (V7-V16), **C1** 2200 uF 25 V (W20 +, U20 -), and two screw terminals:
+  **BATTERY IN** (X2 GND from the battery -, X4 12V from SW1 COM) and **BTS7960** (X24 B+, X26 B-). The thick trails
+  there are 1.5 mm2 solid copper wire; W5 takes the fused 12 V to the rest of the board.
+- **F2** is a 3 A resettable fuse (PTC) at B1-D1 in the battery + wire, which now comes in at A1.
+- The POWER terminal of the 5 x 7 board is gone: power comes in at BATTERY IN.
+The full board is larger than the 85 mm battery bay of the round bottles: it needs a bigger case or its own place.
+
 To keep the board small, the Peltier current does not go through it: battery -> SW1 (on the case) -> inline 10 A fuse
 -> BTS7960 B+, with C1 2200 uF screwed into the BTS7960 B+/B- terminals. The board takes 12 V after the fuse (POWER),
 the battery + for the gauge and charging (B2), and the charger (CHARGE). The DS18B20 runs from 3.3 V here.
