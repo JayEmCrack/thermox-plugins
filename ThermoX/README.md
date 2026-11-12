@@ -1,13 +1,15 @@
 # ThermoX firmware
 
-`ThermoX.ino` targets the **ESP32**, not an Arduino Uno. An Uno has no GPIO32/33/34,
+`ThermoX.ino` targets the **ESP32**, not an Arduino Uno. An Uno has no GPIO33/35/36,
 runs at 5 V logic, and has no hardware I2C on pins 21/22, so the pin map cannot be
 used on it. Use "ESP32 Dev Module" with Arduino-ESP32 core 3.x.
 Libraries: OneWire, DallasTemperature, U8g2.
 
 ## Wiring notes
 - DS18B20 DATA (GPIO14): 4.7 kΩ pull-up to 3.3 V.
-- SUNON tach (GPIO34): input-only pin with no internal pull-up, so add 10 kΩ to 3.3 V
+- Pins changed: Button 1 is now GPIO18 (was GPIO32), the SUNON FG is GPIO35 (was GPIO34, no longer used)
+  and the battery gauge is GPIO36 / VP (was GPIO35). Button 2 stays on GPIO33.
+- SUNON tach (GPIO35): input-only pin with no internal pull-up, so add 10 kΩ to 3.3 V
   (FG is open-collector).
 - Common ground between ESP32, BTS7960, sensor, OLED, fan and battery.
 - BTS7960 logic VCC from 5 V; its 3.3 V-level inputs are fine from ESP32 GPIOs.
@@ -16,20 +18,37 @@ Libraries: OneWire, DallasTemperature, U8g2.
 ## Saved settings and low-battery cutoff
 - The last target (buttons or phone) and the Peltier power limit are saved in flash (`Preferences`) and come back
   after power-up. Nothing starts by itself: a run still needs a button press or Start on the phone.
-- **Low-battery cutoff** works only with battery sensing on (`ENABLE_BATTERY_SENSE = true` and the GPIO35 divider).
+- **Low-battery cutoff** works only with battery sensing on (`ENABLE_BATTERY_SENSE = true` and the GPIO36 divider).
   If a cell stays below `LOW_BATT_CUTOFF_V` (3.30 V) for 5 s, the Peltier stops, the OLED and phone show
-  LOW BATT, and new runs are refused until the cell is back above `LOW_BATT_RESUME_V` (3.60 V). Set `BATT_CELLS`
-  to the number of cells in series and choose `BATT_DIVIDER` so GPIO35 stays below about 3.1 V
-  (1S: 100k/100k = 2.0; 3S 12.6 V: e.g. 100k/22k, divider 5.55). This is a second line of defence: still use a
-  protected pack or BMS.
+  LOW BATT, and new runs are refused until the cell is back above `LOW_BATT_RESUME_V` (3.60 V). `BATT_CELLS = 3`
+  and `BATT_DIVIDER = 5.545` are already set for the 3S pack and the 100k/22k divider on the one-board PCB
+  and the universal PCB, and `ENABLE_BATTERY_SENSE` is now `true` (set it false on a board without the divider). Below 6 V (`BATT_PRESENT_V`) the firmware takes it that no pack is connected, for a bench test on USB-C: no battery % and no cutoff. For a 1S cell use 1 and 2.0 (100k/100k).
+  Keep GPIO36 below about 3.1 V. This is a second line of defence: still use a protected pack or BMS.
+
+## Charging lock
+On the one-board PCB a 12.6 V charger on J10 pulls GPIO19 high through R5 100k / R6 33k. When it is high for 0.5 s
+the Peltier stops, the OLED shows CHARGING ("Do not use while charging"), the buttons and the phone Start are
+refused, and the phone shows CHARGING. Unplug the charger to use ThermoX again. The status JSON has `"chg":1`.
+With battery sensing on, the CHARGING screen shows the charge level as 4 bars of 25 % (the bar being charged
+blinks) and a %. When the pack has stayed at `CHARGE_FULL_V` (4.04 V per cell, about 12.1 V: what the 12.6 V
+charger gives through D2) for a minute, all 4 bars stay on with FULL 100 % ("Battery is full. Unplug the charger").
+The status JSON then also has `"cp"` (charge %) and `"chf":1`. Without battery sensing the screen shows a moving bar.
+Set `ENABLE_CHARGE_DETECT = false` on a board without R5/R6 (GPIO19 would float).
+
+## Bench test sketch
+`ThermoX_Bench/ThermoX_Bench.ino` tests the hardware before the real firmware goes on. Same pins. Serial Monitor at
+115200: `f` fan test (0/50/100 %), `h` / `c` 10 s Peltier heat / cool at 30 % (fan 100 %), `x` stop, `o` OLED test,
+`?` help. The OLED and Serial show the water temperature, battery voltage, charger, buttons, fan rpm and Peltier
+every second. It refuses Peltier tests while charging, without a sensor, or within 60 s of the last one, and stops a
+test above 50 C or below 5 C or when a charger is plugged in.
 
 ## Compile check (GitHub Actions)
-`.github/workflows/compile-firmware.yml` compiles `ThermoX/` with ESP32 core 3.3.12 on every push and pull request
+`.github/workflows/compile-firmware.yml` compiles `ThermoX/` and `ThermoX_Bench/` with ESP32 core 3.3.12 on every push and pull request
 that touches the firmware. A red check means the sketch would not build in the Arduino IDE either.
 
 ## Suggested additions
 1. **Battery gauge (FUTURE ADDITION, disabled for now)**: 100 kΩ/100 kΩ divider from the
-   battery to GPIO35 plus 100 nF to GND, then set `ENABLE_BATTERY_SENSE = true`.
+   battery to GPIO36 (VP) plus 100 nF to GND, then set `ENABLE_BATTERY_SENSE = true`.
 2. **Low-battery cutoff / undervoltage lockout**: stop the TEC below ~3.3 V/cell
    (use a protected Li-ion pack or BMS).
 3. **Second DS18B20 on the heat sink** (same 1-Wire bus): cut the TEC if the hot side
@@ -183,6 +202,6 @@ Some free hosts show a bot-check page to command-line tools like curl; the dashb
 - Logging stops if the browser tab is closed or the Bluetooth link drops (press Connect again).
 - Data flows one way: this PC dashboard cannot change the device. Use the phone page (`phone.html`, above) to set
   the target, start/stop a run and control the fan.
-- Battery voltage is not measured yet (future addition on GPIO35), so no battery value is logged or shown.
+- Battery voltage is not measured yet (future addition on GPIO36), so no battery value is logged or shown.
 - Timestamps come from the server when each line arrives, not from the ESP32.
 - Free hosts can be slow, limit traffic, or change their terms; export your CSVs after each test.
