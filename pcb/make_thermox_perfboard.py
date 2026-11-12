@@ -31,7 +31,7 @@ from matplotlib.patches import Circle, FancyBboxPatch, Rectangle
 OUT = os.path.dirname(os.path.abspath(__file__))
 COLS = "ABCDEFGHIJKLMNOPQRSTUVWX"
 NC, NR = 18, 24                 # holes across, holes down (7 x 9 cm full board: 24 x 30)
-FULL = False                    # True: 7 x 9 cm board with F1, F2, C1 and the power terminals on it
+FULL = False                    # True: 7 x 9 cm board with F1, C1 and the power terminals on it
 LX, R0 = 3, 10                  # left ESP32 pin column (C), row of the first pin (EN)
 LEFT = ["EN", "VP", "VN", "IO34", "IO35", "IO32", "IO33", "IO25", "IO26", "IO27", "IO14", "IO12", "IO13", "GND", "VIN"]
 RIGHT = ["IO23", "IO22", "TX0", "RX0", "IO21", "IO19", "IO18", "IO5", "TX2", "RX2", "IO4", "IO2", "IO15", "GND", "3V3"]
@@ -128,8 +128,8 @@ def design(spacing, full=False):
 
     t = b.trail
     # ---- top band: battery wire, terminals, charge diodes, 12 V lane
+    pads("BAT", "BAT+ wire", ["B2"], ["BAT+"], ["BAT+"])
     if not full:
-        pads("BAT", "BAT+ wire", ["B2"], ["BAT+"], ["BAT+"])
         term("POWER", "POWER", ["E2", "G2"], ["GND", "BUS"], ["GND", "12V"])
     pads("LMI", "LM2596 IN+", ["I2"], ["BUS"], ["IN+"])
     term("CHARGE", "CHARGE", ["K2", "M2"], ["CHG", "GND"], ["+", "-"])
@@ -194,10 +194,6 @@ def add_power_block(b, t, pads):
         hs = [H(x) for x in holes]
         b.part(ref=ref, kind="termv", label=label, pins=list(zip(hs, nets, labs)),
                body=(hs[0][0] - 1.2, hs[0][1] - 1.0, hs[0][0] + 1.5, hs[-1][1] + 1.0))
-    # F2: 3 A resettable fuse (PTC) in the battery + wire, top left
-    pads("BATI", "BAT+ wire", ["A1"], ["BATIN"], ["BAT+ IN"])
-    part2("F2", "ptc", "3A PTC", "B1", "D1", "BATIN", "BAT+", "1", "2", (1.5, 0.4, 4.5, 1.6), low=True)
-    t("BATIN", "A1", "B1"); t("BAT+", "D1", "D3")
     # power block: battery in -> F1 10 A -> 12 V (BUS) -> C1 and the BTS7960
     termv("PIN", "BATTERY IN", ["X2", "X4"], ["GND", "SWIN"], ["GND", "12V"])
     part2("F1", "fuse", "10A", "V7", "V16", "SWIN", "BUS", "1", "2", (19.2, 5.6, 22.8, 17.4))
@@ -246,9 +242,8 @@ def check_firmware(b):
             err.append(f"{net}: board uses GPIO{by_net.get(net)}, ThermoX.ino {const} = {fw[const]}")
     nl = dict(NETLIST)
     if FULL:
-        for k in ("POWER", "BAT"):
-            del nl[k]
-        nl.update({"BATI": ("BATIN",), "F2": ("BATIN", "BAT+"), "F1": ("SWIN", "BUS"), "C1": ("BUS", "GND"),
+        del nl["POWER"]
+        nl.update({"F1": ("SWIN", "BUS"), "C1": ("BUS", "GND"),
                    "PIN": ("GND", "SWIN"), "BTS": ("BUS", "GND")})
     for p in b.parts:
         if p["ref"] in nl and tuple(n for _, n, _ in p["pins"]) != nl[p["ref"]]:
@@ -567,7 +562,7 @@ def top_page(pdf, b, tag):
         ly = 40
         notes = notes[:2] + [
             "D1, D2: stripe at D5 / P5, open D5, J5, K5, P5 to 1.5 mm. F1 fuse holder: pins V7 and V16 (open to 1.3 mm).",
-            "C1 2200 uF stands in U20 (-, stripe) and W20 (+). F2 PTC stands in B1 and D1. A1 = battery + wire.",
+            "C1 2200 uF stands in U20 (-, stripe) and W20 (+). B2 = battery + wire (same hole as the 5 x 7 board).",
             "BATTERY IN: X2 GND (battery -), X4 12V (from SW1 COM). BTS7960: X24 B+, X26 B-. Thick wire for these.",
         ] + notes[4:]
     for i, n in enumerate(notes):
@@ -623,7 +618,7 @@ def bottom_page(pdf, b, tag):
             x, y = g(*h)
             ax.add_patch(Circle((x, y), 0.26 * s, fc="none", ec=netcolor(w["net"]), lw=1.4, zorder=11))
     ly = 52
-    items = ([("SWIN", "12 V before F1"), ("BATIN", "battery + before F2")] if FULL else []) + \
+    items = ([("SWIN", "12 V before F1")] if FULL else []) + \
         [("GND", "ground"), ("BUS", "12 V after the fuse"), ("BAT+", "battery + (gauge, charging)"),
              ("CHG", "charger +"), ("5V", "5 V from the LM2596"), ("3V3", "3.3 V from the ESP32"), ("SIG", "signals")]
     for i, (n, d) in enumerate(items):
@@ -892,11 +887,10 @@ PLACE = [
 ]
 PLACE_FULL = PLACE[:17] + [
     ("18", "CHARGE screw terminal 2-pin", "K2 +, M2 -", "wire openings toward the top edge"),
-    ("19", "F2 resettable fuse 3 A (PTC)", "B1 and D1", "standing; A1 = battery + wire pad"),
-    ("20", "F1 fuse holder 5 x 20 mm", "V7 and V16", "open the 2 holes to 1.3 mm; 10 A slow-blow fuse"),
-    ("21", "C1 2200 uF 25 V", "W20 (+) and U20 (- stripe)", "standing, stripe (-) to U20"),
-    ("22", "BATTERY IN screw terminal 2-pin", "X2 GND, X4 12V", "wire openings toward the right edge"),
-    ("23", "BTS7960 screw terminal 2-pin", "X24 B+, X26 B-", "wire openings toward the right edge"),
+    ("19", "F1 fuse holder 5 x 20 mm", "V7 and V16", "open the 2 holes to 1.3 mm; 10 A slow-blow fuse"),
+    ("20", "C1 2200 uF 25 V", "W20 (+) and U20 (- stripe)", "standing, stripe (-) to U20"),
+    ("21", "BATTERY IN screw terminal 2-pin", "X2 GND, X4 12V", "wire openings toward the right edge"),
+    ("22", "BTS7960 screw terminal 2-pin", "X24 B+, X26 B-", "wire openings toward the right edge"),
 ]
 
 
@@ -970,10 +964,10 @@ def steps2_page(pdf, b, tag):
     ]
     if FULL:
         checks = [
-            "[ ] Must NOT beep:  A1 (BAT+ in) to X2 (GND)   X4 (12V in) to X2   X24 (B+) to X26 (B-)   K2 to M2   B24 to B23",
-            "[ ] Must NOT beep:  R24 (3V3) to Q23 (GND)   A1 to X4   G2 (12V) to X2   each pin to its neighbours on the headers",
+            "[ ] Must NOT beep:  B2 (BAT+) to X2 (GND)   X4 (12V in) to X2   X24 (B+) to X26 (B-)   K2 to M2   B24 to B23",
+            "[ ] Must NOT beep:  R24 (3V3) to Q23 (GND)   B2 to X4   G2 (12V) to X2   each pin to its neighbours on the headers",
             "[ ] Must beep:      X2 to M2, X2 to X26, X2 to U20, X2 to Q12 (all GND)   X24 to W20 and to P8, G2 (12V via W5)",
-            "[ ] Must beep with the fuses in:  X4 to X24 (through F1)   A1 to B2 and D5 (through F2)   K2 to O19 (W4)",
+            "[ ] Must beep:      X4 to X24 with the fuse in (through F1)   B2 to D5 (BAT+)   K2 to O19 (CHG, via W4)",
         ]
     for t in checks:
         line(t, family="monospace", fs=6.6)
@@ -1161,7 +1155,7 @@ POWER_WIRES_FULL = [
     (5, "Battery P- (BMS)", "Board BATTERY IN GND (X2)", "1.5 mm2", "black", ""),
     (6, "Board BTS7960 B+ (X24)", "BTS7960 B+", "1.5 mm2", "red", ""),
     (7, "Board BTS7960 B- (X26)", "BTS7960 B-", "1.5 mm2", "black", ""),
-    (8, "Battery P+ (BMS)", "Board BAT+ wire pad (A1)", "0.75 mm2", "orange", "F2 (PTC) is on the board; keep short"),
+    (8, "Battery P+ (BMS)", "Board BAT+ wire pad (B2)", "0.75 mm2", "orange", "no F2: keep it short, BMS protects"),
     (9, "BTS7960 M+ and M-", "Peltier red and black", "Peltier wires", "red/black",
      "swap them if it heats when it should cool"),
     (10, "DC jack centre (+) / sleeve (-)", "Board CHARGE + (K2) / - (M2)", "0.5-0.75 mm2", "pink/black", ""),
@@ -1173,7 +1167,7 @@ POWER_WIRES_FULL = [
 
 def power_diagram_full_page(pdf, tag):
     fig, ax = land(pdf, f"ThermoX WIRING DIAGRAM 1 - POWER, FULL BOARD  [{tag}]",
-                   "F1 (10 A), F2 (3 A PTC) and C1 (2200 uF) are ON the board. Thick lines = 1.5 mm2. Dots = joined. "
+                   "F1 (10 A) and C1 (2200 uF) are ON the board. No F2. Thick lines = 1.5 mm2. Dots = joined. "
                    "Numbers = wire list on page 8.")
     d = Draw(ax)
     d.box(15, 95, 60, 140, "", "#fff3cd")
@@ -1198,9 +1192,7 @@ def power_diagram_full_page(pdf, tag):
     ax.text(175, 130, "F1\n10 A", ha="center", va="center", fontsize=6.5, weight="bold", color="#b71c1c", zorder=4)
     ax.add_patch(Circle((181, 104), 6, fc="#37474f", ec="black", lw=0.8, zorder=3))
     ax.text(181, 104, "C1\n2200uF", ha="center", va="center", fontsize=5, color="white", weight="bold", zorder=4)
-    ax.add_patch(FancyBboxPatch((122, 126), 12, 7, boxstyle="round,pad=0.3", fc="#ffd54f", ec="0.3", lw=0.8, zorder=3))
-    ax.text(128, 129.5, "F2 3A", ha="center", va="center", fontsize=5.5, weight="bold", zorder=4)
-    for x, y, lab, side in [(175, 150, "X4 12V IN", "t"), (192, 150, "X2 GND IN", "t"), (110, 130, "A1  BAT+ in", "l"),
+    for x, y, lab, side in [(175, 150, "X4 12V IN", "t"), (192, 150, "X2 GND IN", "t"), (110, 130, "B2  BAT+", "l"),
                             (110, 70, "I2  LM IN+", "l"), (110, 56, "B23  LM OUT-", "l"), (110, 50, "B24  LM OUT+", "l"),
                             (200, 110, "X24  B+", "r"), (200, 100, "X26  B-", "r"),
                             (140, 40, "K2 CHG+", "b"), (165, 40, "M2 CHG-", "b")]:
@@ -1423,7 +1415,7 @@ BOM = [
 
 def fuse_fan_page(pdf, tag):
     fig, ax = page(pdf, f"ThermoX - 9. FUSES AND FAN WIRES  [{tag}]",
-                   "F1, F2 and C1 are on this board; the fuse page below shows how to fit them." if FULL else
+                   "F1 and C1 are on this board (no F2); the fuse page below shows how to fit them." if FULL else
                    "The fuses are NOT on the board on purpose: the Peltier current (up to 7 A) must not go through a perfboard.")
     RED, BLK, ORG = "#d62728", "#222222", "#ff7f0e"
 
@@ -1496,19 +1488,19 @@ def fuse_fan_page(pdf, tag):
         for t in [
             "F1  10 A slow-blow (5 x 20 mm glass fuse) in the PCB fuse holder at V7-V16. It protects the whole 12 V side:",
             "    BATTERY IN 12V (X4, from SW1 COM) -> F1 -> C1 and BTS7960 B+ (X24), and the board 12 V through wire W5.",
-            "F2  3 A resettable fuse (PTC, for example MF-R300) at B1-D1, in the battery + wire (A1) to the gauge and charger.",
-            "    It has no fuse to change: after a short it cools down and conducts again. Find the short first.",
+            "No F2 on this board: the battery + wire goes straight into B2 (same hole as the 5 x 7 board). The BMS is the",
+            "    protection on that wire (it cuts the pack on a short), so keep the wire short and well insulated.",
             "",
             "How to fit them:",
             "1. Open V7 and V16 to 1.3 mm if the holder pins do not go in. Push the holder flat on the board, solder both pins",
             "   with plenty of solder, then solder the 1.5 mm2 solid wire trails X4-X7-V7 and V16-W16-W24-X24 on the bottom.",
-            "2. F2 stands up in B1 and D1 (no + or -). Solder the battery + wire into A1 and bridge A1 to B1.",
+            "2. Solder the battery + wire (0.75 mm2) into B2. B2 joins D5 (D2) and R3 through the BAT+ trail.",
             "3. Fuse in: 10 A slow-blow only. Never a bigger fuse, never a piece of wire instead of the fuse.",
-            "4. Meter, battery off: X4 to X24 beeps only with the fuse in; A1 to B2 beeps (through F2).",
-            "5. Keep the battery + wire to A1 short: it has no fuse before the board (the BMS still protects the pack).",
+            "4. Meter, battery off: X4 to X24 beeps only with the fuse in; B2 to D5 beeps (BAT+); B2 to X2 must NOT beep.",
+            "5. Keep the battery + wire to B2 short and away from the GND wires: it has no fuse (the BMS still protects).",
             "",
             "Wires to the board: battery P- -> X2 (1.5 mm2), SW1 COM -> X4 (1.5 mm2), X24 -> BTS7960 B+ and X26 -> B- (1.5 mm2),",
-            "battery P+ -> A1 (0.75 mm2). Trigger board -> SW1 USB lug and its - to X2 or to the battery P-.",
+            "battery P+ -> B2 (0.75 mm2). Trigger board -> SW1 USB lug and its - to X2 or to the battery P-.",
         ]:
             ax.text(12, y, t, fontsize=7.2, va="top", weight="bold" if t.endswith(":") else None); y -= 4.6
     # ---------------- fan wires
@@ -1543,7 +1535,6 @@ def bom_full():
             rows[0] = ("1", "Universal PCB 7 x 9 cm, single-sided, 24 x 30 holes, 2.54 mm", "")
             rows[4] = ("3", "Screw terminal 2-pin 5.08 mm (KF301-2P)", "CHARGE, BATTERY IN, BTS7960")
             rows += [("1", "PCB fuse holder 5 x 20 mm (BLX-A type)", "F1"),
-                     ("1", "Resettable fuse (PTC) 3 A hold, for example MF-R300", "F2"),
                      ("1", "Electrolytic capacitor 2200 uF 25 V low ESR", "C1")]
         if head == "MODULES AND PARTS AROUND THE BOARD":
             rows = [r for r in rows if not r[1].startswith(("Inline fuse holder", "Fuse 5 x 20", "Electrolytic"))]
@@ -1594,7 +1585,7 @@ def main():
             fuse_fan_page(pdf, tag)
             bom_page(pdf, tag)
         print(f"rows {spacing} OK -> {os.path.basename(name)}  ({len(b.trails)} trails, {len(b.wires)} wires)")
-    # full board: 7 x 9 cm with F1, F2, C1 and the power terminals, every other part in the same holes
+    # full board: 7 x 9 cm with F1, C1 and the power terminals, every other part in the same holes
     global FULL, NC, NR, BOARD_W, BOARD_H, BOARD_TXT, ZS
     FULL, NC, NR, BOARD_W, BOARD_H, ZS = True, 24, 30, 70.0, 90.0, 6.3
     BOARD_TXT = "7 x 9 cm perfboard, 24 x 30 holes. Columns A-X, rows 1-30."

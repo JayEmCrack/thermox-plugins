@@ -54,10 +54,9 @@ constexpr uint32_t CHARGE_DEBOUNCE_MS = 500;  // the pin must stay the same this
 constexpr float   CHARGE_FULL_V  = 4.04f;     // per cell
 constexpr uint32_t CHARGE_FULL_MS = 60000;    // must stay at CHARGE_FULL_V this long before FULL
 
-// Battery gauge on GPIO36 (VP). Leave false until the board with the divider is built; then set it to true
-// to show battery % on the OLED and the phone and to turn on the low-battery cutoff.
-// The values below match the ThermoX one-board PCB: R3 100k / R4 22k from the 3S pack.
-constexpr bool    ENABLE_BATTERY_SENSE = false;
+// Battery gauge on GPIO36 (VP): battery % on the OLED and the phone, the low-battery cutoff and the charging bars.
+// The universal PCB has the divider (R3 100k / R4 22k from the 3S pack). Set false on a board without it.
+constexpr bool    ENABLE_BATTERY_SENSE = true;
 constexpr uint8_t PIN_BATT_ADC = 36;   // VP pin, ADC1 (moved from GPIO35)
 constexpr float   BATT_DIVIDER = 5.545f;    // (100k + 22k) / 22k
 constexpr float   BATT_EMPTY_V = 3.3f;      // per cell, Li-ion
@@ -65,7 +64,9 @@ constexpr float   BATT_FULL_V  = 4.15f;
 constexpr uint8_t BATT_CELLS = 3;           // Li-ion cells in series (3S pack); keep GPIO36 below ~3.1 V
 constexpr float   LOW_BATT_CUTOFF_V = 3.30f;  // per cell: Peltier stops below this...
 constexpr uint32_t LOW_BATT_DELAY_MS = 5000;  // ...for this long (ignores short dips under load)
-constexpr float   LOW_BATT_RESUME_V = 3.60f;  // per cell: new runs allowed again above this
+constexpr float   LOW_BATT_RESUME_V = 3.60f;
+constexpr float   BATT_PRESENT_V = 6.0f;      // pack: below this no battery is connected (bench test on USB-C):
+                                              // no battery %, no low-battery cutoff  // per cell: new runs allowed again above this
 
 // ---------------- Tunables ----------------
 constexpr float TARGET_MIN = 20.0f, TARGET_MAX = 50.0f, TARGET_DEFAULT = 25.0f;
@@ -202,6 +203,7 @@ void readBattery() {
   if (now - t0 < 2000) return; t0 = now;
   float v = analogReadMilliVolts(PIN_BATT_ADC) / 1000.0f * BATT_DIVIDER;
   battV = isnan(battV) ? v : battV * 0.7f + v * 0.3f;   // smoothed pack voltage
+  if (battV < BATT_PRESENT_V) { battPct = -1; return; }
   float cell = battV / BATT_CELLS;
   battPct = constrain((int)((cell - BATT_EMPTY_V) * 100 / (BATT_FULL_V - BATT_EMPTY_V)), 0, 100);
 }
@@ -216,7 +218,7 @@ void readCharger() {
 
   // Charge level: 0-100 % up to what this charger reaches, 100 % only once it is really full.
   static uint32_t fullSince = 0;
-  if (!charging || isnan(battV)) { chgPct = -1; chargeFull = false; fullSince = 0; return; }
+  if (!charging || isnan(battV) || battV < BATT_PRESENT_V) { chgPct = -1; chargeFull = false; fullSince = 0; return; }
   float cell = battV / BATT_CELLS;
   chgPct = constrain((int)((cell - BATT_EMPTY_V) * 100 / (CHARGE_FULL_V - BATT_EMPTY_V)), 0, 100);
   if (cell >= CHARGE_FULL_V) {
@@ -257,7 +259,8 @@ void control() {
   if (waterC <= UNDERTEMP_CUTOFF) { enterFault(F_UNDERTEMP); return; }
 
   // Low battery: stop the run and refuse new ones until the battery recovers (not latched).
-  if (ENABLE_BATTERY_SENSE && !isnan(battV)) {
+  if (ENABLE_BATTERY_SENSE && !isnan(battV) && battV < BATT_PRESENT_V) { lowBatt = false; lowBattSince = 0; }
+  else if (ENABLE_BATTERY_SENSE && !isnan(battV)) {
     float cell = battV / BATT_CELLS;
     if (cell < LOW_BATT_CUTOFF_V) {
       if (lowBattSince == 0) lowBattSince = now;
@@ -593,17 +596,18 @@ void bleTick() {
 
 // ---------------- Arduino ----------------
 void setup() {
+  // Peltier and fan off first: the BTS7960 enable pins float until they are driven.
+  pinMode(PIN_REN, OUTPUT); pinMode(PIN_LEN, OUTPUT);
+  digitalWrite(PIN_REN, LOW); digitalWrite(PIN_LEN, LOW);
+  ledcAttach(PIN_RPWM, PWM_TEC_HZ, PWM_BITS); ledcAttach(PIN_LPWM, PWM_TEC_HZ, PWM_BITS);
+  ledcAttach(PIN_FAN_PWM, PWM_FAN_HZ, PWM_BITS);
+  tecStop(); setFan(0);
   Serial.begin(115200);
   logEvent("Power on");
   prefs.begin("thermox", false);                 // saved target and power limit (no run starts)
   targetC = constrain(prefs.getFloat("target", TARGET_DEFAULT), TARGET_MIN, TARGET_MAX);
   tecPowerPct = constrain(prefs.getUChar("power", 100), POWER_MIN_PCT, (uint8_t)100);
   if (ENABLE_BT_LOGGING) SerialBT.begin(BT_NAME);
-  pinMode(PIN_REN, OUTPUT); pinMode(PIN_LEN, OUTPUT);
-  digitalWrite(PIN_REN, LOW); digitalWrite(PIN_LEN, LOW);
-  ledcAttach(PIN_RPWM, PWM_TEC_HZ, PWM_BITS); ledcAttach(PIN_LPWM, PWM_TEC_HZ, PWM_BITS);
-  ledcAttach(PIN_FAN_PWM, PWM_FAN_HZ, PWM_BITS);
-  tecStop(); setFan(0);
   if (ENABLE_BLE_CONTROL) bleBegin();            // after the Peltier and fan outputs are safely off
 
   pinMode(PIN_BTN_DOWN, INPUT_PULLUP); pinMode(PIN_BTN_UP, INPUT_PULLUP);

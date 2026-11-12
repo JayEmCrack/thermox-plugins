@@ -22,7 +22,7 @@ Libraries: OneWire, DallasTemperature, U8g2.
   If a cell stays below `LOW_BATT_CUTOFF_V` (3.30 V) for 5 s, the Peltier stops, the OLED and phone show
   LOW BATT, and new runs are refused until the cell is back above `LOW_BATT_RESUME_V` (3.60 V). `BATT_CELLS = 3`
   and `BATT_DIVIDER = 5.545` are already set for the 3S pack and the 100k/22k divider on the one-board PCB
-  (`pcb/thermox_onepcb_*`), so only `ENABLE_BATTERY_SENSE` has to change. For a 1S cell use 1 and 2.0 (100k/100k).
+  and the universal PCB, and `ENABLE_BATTERY_SENSE` is now `true` (set it false on a board without the divider). Below 6 V (`BATT_PRESENT_V`) the firmware takes it that no pack is connected, for a bench test on USB-C: no battery % and no cutoff. For a 1S cell use 1 and 2.0 (100k/100k).
   Keep GPIO36 below about 3.1 V. This is a second line of defence: still use a protected pack or BMS.
 
 ## Charging lock
