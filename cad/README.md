@@ -34,3 +34,10 @@ STEP needs `pip install cadquery`; the other files need only Python. The Blender
 Checks run on a computer: no overlapping boxes, every mesh closed and facing outward, every STEP file re-opens with all its solids (109 classic, 117 modern, 131 trail, 102 pebble, 127 deco, 96 retro, 146 duo) and the expected bounding box, and in the bottles and the Duo every inside part stays at least 0.4 mm inside the wall (the tightest are the foam sleeve around the cup and, in the Pebble bottle, the BTS7960 board). Sizes for the ESP32, BTS7960, OLED, BMS and LM2596 are typical values; measure your parts. The weight (about 1.4 kg with water, plastic shell) is my estimate. Finishes and materials are suggestions, not tested.
 
 The controller PCB is in `../pcb/`. Its 82 mm round version fits inside the battery bay of the round bottles (85 mm inside).
+
+## Thermowell positions (mock designs)
+
+`thermowell_designs.pdf` compares ten places for the DS18B20 thermowell in the round bottle (lid, side wall, floor,
+over the rim), each with a cross-section, how it is built, good and bad points and a score. Page 13 shows how to make
+the thermowell itself (8 mm stainless tube, closed tip, thermal paste). `python3 make_thermowell_designs.py` rebuilds it.
+These are concepts with our own scores, not tested designs: check the choice with a reference thermometer.
