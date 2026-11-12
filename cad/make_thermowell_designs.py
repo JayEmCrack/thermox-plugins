@@ -37,8 +37,9 @@ DESIGNS = [
      ["No hole below the water line", "Centre stays free", "Simple: one gland in the lid"],
      ["A little closer to the wall than design 1", "The lid needs a plug for the sensor cable"]),
     ("3. Lid, angled to the centre", "Lid angled",
-     [(28, 92), (28, LID_TOP - 6), (3, 20)], [(28, LID_TOP - 6)], [5, 5, 3, 3, 3],
-     "Enters near the lid edge and slopes so the tip ends at the centre of the water.",
+     [(30, 92), (3, 20)], [(24.8, LID_TOP - 6)], [5, 5, 3, 3, 3],
+     "A straight tube enters near the lid edge at an angle, so the tip ends at the centre of the water. "
+     "The tube is straight because the steel probe cannot bend.",
      ["Tip in the centre, entry out of the way", "No hole below the water line"],
      ["The angled hole and gland are harder to make", "The lid needs a plug for the sensor cable"]),
     ("4. Side wall, mid-height", "Wall middle",
@@ -62,22 +63,27 @@ DESIGNS = [
      ["Lid is free, nothing hangs from it"],
      ["Hole in the floor right above the electronics: worst leak risk", "Must pass the heatsink and fan area"]),
     ("8. Floor edge, angled in", "Floor angled",
-     [(32, -25), (32, -1.5), (6, 32)], [(32, -1.5)], [4, 1, 3, 2, 1],
-     "Enters at the floor edge and slopes to the centre of the water.",
+     [(40, -20), (6, 32)], [(27.9, -1.5)], [4, 1, 3, 2, 1],
+     "A straight tube enters at the floor edge at an angle and ends at the centre of the water.",
      ["Tip in the centre", "Lid is free"],
      ["Hole in the floor above the electronics", "Angled seal in a 3 mm plate is hard to make"]),
     ("9. Lid, L-shape to the centre", "Lid L-shape",
      [(28, 92), (28, 22), (4, 22)], [(28, LID_TOP - 6)], [5, 5, 2, 3, 2],
-     "Goes down near the wall, then turns to the centre. The sensor sits in the horizontal part.",
+     "Goes down near the wall, then turns to the centre. Only works with the BARE DS18B20 chip on thin wires: "
+     "the 6 mm steel probe cannot go round the bend.",
      ["Tip in the centre at 1/3 height", "No hole below the water line"],
-     ["The probe does not bend: the sensor must be at the tip of a straight part", "Bent tube is in the way of cleaning"]),
-    ("10. Over the cup rim, along the inside wall", "Rim, on the wall",
-     [(SHELL + 2, LID_TOP - 9), (R_IN - 4, LID_TOP - 9), (R_IN - 4, 20)], [], [4, 5, 4, 5, 4],
-     "The tube is fixed to the CUP (not the lid): it hooks over the rim and runs down the inside wall to 20 mm above "
-     "the floor. The cable leaves through a groove in the foam under the lid seal.",
+     ["The steel probe cannot be used: bare chip + wires, sealed in the tube", "Bent tube is in the way of cleaning"]),
+    ("10. Straight tube on the inside wall, cable over the rim", "Inside wall",
+     [(R_IN - 4, CUP_TOP - 1), (R_IN - 4, 20)], [], [4, 5, 4, 5, 4],
+     "A STRAIGHT tube is clipped to the inside wall of the cup (not the lid). Its open top ends just under the rim; "
+     "the tip is 20 mm above the floor. The steel probe slides straight in from the top. Only the CABLE bends, gently, "
+     "over the rim and out through a groove in the foam under the lid seal.",
      ["No hole at all: nothing to seal", "Lid comes off freely, the cable stays in the body",
-      "Easy to make: one bent tube and two clips"],
-     ["Tip is 4 mm from the wall, not in the centre", "The lid seal needs a small groove for the tube"]),
+      "Easy to make: one straight tube and two clips", "The steel probe stays straight"],
+     ["Tip is 4 mm from the wall, not in the centre", "The lid seal needs a small groove for the cable",
+      "Bend the cable gently (round bend, not a kink)"],
+     [(R_IN - 4, CUP_TOP - 1), (R_IN - 4, CUP_TOP + 3), (R_IN + 3, CUP_TOP + 3), (R_IN + 3, CUP_TOP - 6),
+      (SHELL + 4, CUP_TOP - 6)]),
 ]
 RECOMMEND = 9          # index of design 10
 
@@ -121,8 +127,13 @@ def section(ax, x0, y0, s, d, small=False):
         x, y = P(*sp)
         ax.add_patch(Rectangle((x - 6.5 * s, y - 2.5 * s), 13 * s, 5 * s, fc="#43a047", ec="black", lw=0.4, zorder=8))
     start = P(*d[2][0])
-    ax.plot([start[0], start[0] + (6 if not small else 3) * s * 2], [start[1], start[1] + 4 * s], color="#6a1b9a",
-            lw=1.0 if not small else 0.6, ls="--", zorder=8)
+    if len(d) > 8:                                   # cable path drawn for this design
+        cp = [P(*q) for q in d[8]]
+        ax.plot(*zip(*cp), color="#6a1b9a", lw=1.4 if not small else 0.8, ls="--", zorder=8)
+        start = cp[-1]
+    else:
+        ax.plot([start[0], start[0] + (6 if not small else 3) * s * 2], [start[1], start[1] + 4 * s], color="#6a1b9a",
+                lw=1.0 if not small else 0.6, ls="--", zorder=8)
     if not small:
         ax.annotate("sensor (last 10 mm\nof the probe)", xy=P(*tip), xytext=(P(*tip)[0] + 28, P(*tip)[1] - 14),
                     fontsize=6, color="#c62828", arrowprops=dict(arrowstyle="->", color="#c62828", lw=0.6), zorder=9)
@@ -275,6 +286,8 @@ def build_page(pdf):
         "6. Test: compare with a reference thermometer at 10, 20, 30, 40 and 50 C; measure the response time.",
         "",
         "Only stainless steel and food-grade silicone touch the drink. No hot glue, no tape, nothing inside the water but the tube.",
+        "Never bend the 6 mm steel part of the probe (the sensor and its seal are inside). Keep the thermowell straight; only",
+        "the cable may bend, in a smooth curve, with no sharp kink where it leaves the steel part.",
     ]
     y = 100
     for t in steps:
