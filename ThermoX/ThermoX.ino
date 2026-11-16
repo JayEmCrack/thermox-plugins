@@ -19,6 +19,10 @@
      battery recovers
    - Charging (needs ENABLE_CHARGE_DETECT): while a charger is plugged into J10 the OLED shows CHARGING,
      the Peltier stays off and no run can start, from the buttons or the phone
+   - A fault (SENSOR, OVER TEMP, TOO COLD, FAN STALL) stops the Peltier. A lost sensor clears by itself when
+     it reads again; the others clear on the next button press once the water is back inside the limits
+   - USB Serial Monitor (115200): a "# ..." status line every 2 s and a "PRESS: ..." line for every button
+     press that says what the press did, or what blocked it
 */
 #include <Arduino.h>
 #include <Wire.h>
@@ -64,9 +68,9 @@ constexpr float   BATT_FULL_V  = 4.15f;
 constexpr uint8_t BATT_CELLS = 3;           // Li-ion cells in series (3S pack); keep GPIO36 below ~3.1 V
 constexpr float   LOW_BATT_CUTOFF_V = 3.30f;  // per cell: Peltier stops below this...
 constexpr uint32_t LOW_BATT_DELAY_MS = 5000;  // ...for this long (ignores short dips under load)
-constexpr float   LOW_BATT_RESUME_V = 3.60f;
+constexpr float   LOW_BATT_RESUME_V = 3.60f;  // per cell: new runs allowed again above this
 constexpr float   BATT_PRESENT_V = 6.0f;      // pack: below this no battery is connected (bench test on USB-C):
-                                              // no battery %, no low-battery cutoff  // per cell: new runs allowed again above this
+                                              // no battery %, no low-battery cutoff
 
 // ---------------- Tunables ----------------
 constexpr float TARGET_MIN = 20.0f, TARGET_MAX = 50.0f, TARGET_DEFAULT = 25.0f;
@@ -247,12 +251,50 @@ void handleButtons() {
   if (btnStep(bUp))   { targetC = min(TARGET_MAX, targetC + 1.0f); newRun = true; }
 }
 
+// ---------------- Serial Monitor help (USB only, 115200 baud) ----------------
+// One line per button press / phone start: what it did, or what blocked it.
+void pressInfo(const char* what) {
+  char t[10] = "--";
+  if (!isnan(waterC)) snprintf(t, sizeof t, "%.1f", waterC);
+  Serial.printf("PRESS: target %.0f C, water %s C -> %s\n", targetC, t, what);
+}
+
+// Status line every 2 s. It starts with '#', so receiver.py ignores it.
+void debugLine() {
+  static uint32_t t0 = 0;
+  if (millis() - t0 < 2000) return;
+  t0 = millis();
+  char t[10] = "--", bv[10] = "--";
+  if (!isnan(waterC)) snprintf(t, sizeof t, "%.1f", waterC);
+  if (!isnan(battV)) snprintf(bv, sizeof bv, "%.1f", battV);
+  const char* st = mode == FAULT ? FAULT_TXT[fault] : charging ? "CHARGING (locked)" : lowBatt ? "LOW BATT (locked)"
+                   : waitLeftS ? "WAIT" : mode == IDLE ? (reached ? "REACHED" : "READY") : MODE_TXT[mode];
+  Serial.printf("# %s | water %s C | target %.0f C | Peltier %u%% | fan %u%% %u rpm | batt %s V | charger pin %s | BTN1 %s BTN2 %s\n",
+                st, t, targetC, tecDuty * 100U / 255, fanDuty * 100U / 255, (unsigned)fanRpm, bv,
+                digitalRead(PIN_CHG_DET) == HIGH ? "HIGH" : "low",
+                digitalRead(PIN_BTN_DOWN) == LOW ? "DOWN" : "up", digitalRead(PIN_BTN_UP) == LOW ? "DOWN" : "up");
+}
+
 // ---------------- Control ----------------
 void control() {
   uint32_t now = millis();
 
-  if (fault == F_FAN || mode == FAULT) {         // latched; clears on power cycle
-    tecStop(); setFan(255); return;
+  // A fault keeps the Peltier off and the fan at full speed. A lost sensor clears by itself as soon as it
+  // reads again. The other faults clear on the next button press (or phone start), and only once the water
+  // is back inside the limits; that press then starts a run as usual. A fan that is still stalled faults
+  // again after FAN_STALL_GRACE_MS.
+  if (mode == FAULT) {
+    bool sensorOk = !isnan(waterC) && now - lastGoodRead <= SENSOR_FAIL_MS;
+    bool tempOk = sensorOk && waterC < OVERTEMP_CUTOFF && waterC > UNDERTEMP_CUTOFF;
+    bool clear = tempOk && (fault == F_SENSOR || newRun);
+    if (!clear) {
+      if (newRun) pressInfo(fault == F_SENSOR || !sensorOk ? "blocked: no temperature sensor reading (check the TEMP plug and R2)"
+                            : fault == F_FAN ? "blocked: FAN STALL" : "blocked: water temperature outside 5..55 C");
+      newRun = false; tecStop(); setFan(255); return;
+    }
+    logEvent("Fault cleared");
+    fault = F_NONE; mode = IDLE; modeSince = now; runDir = IDLE; reached = false;
+    fanOnSince = 0;                              // a new 5 s spin-up time before the stall check
   }
   if (now - lastGoodRead > SENSOR_FAIL_MS) { enterFault(F_SENSOR); return; }
   if (waterC >= OVERTEMP_CUTOFF)  { enterFault(F_OVERTEMP);  return; }
@@ -270,9 +312,15 @@ void control() {
       if (cell > LOW_BATT_RESUME_V) lowBatt = false;
     }
   }
-  if (lowBatt) { runDir = IDLE; newRun = false; reached = false; }
+  if (lowBatt) {
+    if (newRun) pressInfo("blocked: LOW BATT (battery below 9.9 V, charge it)");
+    runDir = IDLE; newRun = false; reached = false;
+  }
   // Charging: ThermoX must not be used. Stop any run and refuse new ones until the charger is unplugged.
-  if (charging) { runDir = IDLE; newRun = false; reached = false; }
+  if (charging) {
+    if (newRun) pressInfo("blocked: CHARGING (charger detect pin GPIO19 reads HIGH)");
+    runDir = IDLE; newRun = false; reached = false;
+  }
 
   // One run per button press. The direction is chosen when the press is handled; the run then
   // goes at full power until the water crosses the target. After that nothing restarts by itself,
@@ -282,6 +330,8 @@ void control() {
     if (waterC < targetC - START_BAND_C)      runDir = HEAT;
     else if (waterC > targetC + START_BAND_C) runDir = COOL;
     else { runDir = IDLE; reached = true; }        // already at the target
+    pressInfo(runDir == HEAT ? "start HEATING" : runDir == COOL ? "start COOLING"
+              : "nothing to do: the water is already within 0.5 C of the target");
   } else if ((runDir == HEAT && waterC >= targetC) || (runDir == COOL && waterC <= targetC)) {
     runDir = IDLE; reached = true;
   }
@@ -370,7 +420,13 @@ void drawUI() {
 
   oled.setFont(u8g2_font_9x15_tr);
   snprintf(b, sizeof b, "Set: %.0f C", targetC); oled.drawStr(8, 84, b);
-  if (mode == FAULT) oled.drawStr(8, 102, FAULT_TXT[fault]);
+  if (mode == FAULT) {
+    oled.drawStr(8, 102, FAULT_TXT[fault]);
+    oled.setFont(u8g2_font_5x7_tr);
+    oled.drawStr(8, 111, fault == F_SENSOR ? "check the TEMP plug" : fault == F_FAN ? "check fan, then press"
+                          : "press a button to retry");
+    oled.setFont(u8g2_font_9x15_tr);
+  }
   else if (lowBatt) oled.drawStr(8, 102, "LOW BATT");
   else if (waitLeftS) { snprintf(b, sizeof b, "WAIT %us", waitLeftS); oled.drawStr(8, 102, b); }
   else if (mode == IDLE) oled.drawStr(8, 102, reached ? "REACHED" : "READY");
@@ -621,6 +677,7 @@ void setup() {
   oled.begin();
 
   ds.begin(); ds.setWaitForConversion(false); ds.setResolution(12);
+  Serial.printf("\nThermoX ready. DS18B20 sensors found: %d\n", ds.getDeviceCount());
   lastGoodRead = millis();
 }
 
@@ -633,5 +690,6 @@ void loop() {
   saveTarget();
   drawUI();
   logData();
+  debugLine();
   bleTick();
 }

@@ -443,7 +443,7 @@ function render(s) {
   if (s.chg && s.chf) { label = 'BATTERY FULL'; cls = 'ok'; hint = 'Charging is done. Unplug the charger to use ThermoX.'; }
   else if (s.chg) { label = 'CHARGING' + (s.cp >= 0 ? ' ' + s.cp + ' %' : ''); cls = 'warn'; hint = 'Charger plugged in. ThermoX cannot be used while charging: unplug the charger to use it.'; }
   else if (s.lb && s.m !== 'FAULT') { label = 'LOW BATTERY'; cls = 'bad'; hint = 'Peltier stopped to protect the battery. Charge it; Start works again when the battery recovers.'; }
-  else if (s.m === 'FAULT') { label = 'FAULT' + (s.f ? ': ' + s.f : ''); cls = 'bad'; g = 'fault'; hint = 'Peltier off, fan full. Fix the cause, then turn ThermoX off and on to clear.'; }
+  else if (s.m === 'FAULT') { label = 'FAULT' + (s.f ? ': ' + s.f : ''); cls = 'bad'; g = 'fault'; hint = 'Peltier off, fan full. Fix the cause, then press Start or a button to try again (a lost sensor clears by itself).'; }
   else if (s.w > 0) { label = 'WAIT ' + s.w + ' s'; cls = 'warn'; hint = 'Resting before switching hot ↔ cold.'; }
   else if (s.m === 'HEATING') { label = 'HEATING'; cls = 'heat'; g = 'heat'; hint = 'Heating to ' + s.tg + ' °C at ' + (s.pw || 100) + ' % power.'; }
   else if (s.m === 'COOLING') { label = 'COOLING'; cls = 'cool'; g = 'cool'; hint = 'Cooling to ' + s.tg + ' °C at ' + (s.pw || 100) + ' % power.'; }

@@ -35,6 +35,26 @@ charger gives through D2) for a minute, all 4 bars stay on with FULL 100 % ("Bat
 The status JSON then also has `"cp"` (charge %) and `"chf":1`. Without battery sensing the screen shows a moving bar.
 Set `ENABLE_CHARGE_DETECT = false` on a board without R5/R6 (GPIO19 would float).
 
+## A button press does not start the Peltier
+A press only starts a run when nothing blocks it. The OLED line under `Set:` says what does:
+
+| OLED | Meaning | Check |
+|---|---|---|
+| `SENSOR` | no DS18B20 reading for 5 s | TEMP plug (P20 DQ, Q20 GND, R20 3.3 V) and R2 4.7k. Clears by itself. |
+| `FAN STALL` | the run started, but no fan speed signal for 5 s | fan plug and R1 10k; a fan without the yellow FG wire needs `FAN_MIN_RPM = 0`. Press again to retry. |
+| `CHARGING` screen | GPIO19 reads HIGH | unplug the charger. With no charger: R6 33k (N15-N20) missing or not soldered, or leakage through D1/D2: put 2.2k-4.7k across the CHARGE terminal (K2 to M2). |
+| `LOW BATT` | pack between 6 V and 9.9 V | charge the battery; check R3 100k / R4 22k. |
+| `REACHED` | the water is within 0.5 C of the target | press again: every press moves the target by 1 C. |
+| `WAIT nn s` | 60 s rest before hot <-> cold reverses | wait. |
+| `HEATING` / `COOLING` and a % bottom right | the ESP32 is driving the BTS7960 | the fault is after the ESP32: see below. |
+
+The Serial Monitor (115200 baud) prints the same thing: a `# ...` status line every 2 s and a `PRESS: ...` line for
+every press with the reason.
+
+If the OLED says HEATING or COOLING but M+ / M- stays at 0 V: the BTS7960 needs 12 V on B+ / B- (F1 fuse in, SW1 on),
+5 V on VCC and its GND on the BTS B header, and all four signal wires (R_EN A17, RPWM A18, LPWM A19, L_EN A22).
+R_IS and L_IS stay unconnected.
+
 ## Bench test sketch
 `ThermoX_Bench/ThermoX_Bench.ino` tests the hardware before the real firmware goes on. Same pins. Serial Monitor at
 115200: `f` fan test (0/50/100 %), `h` / `c` 10 s Peltier heat / cool at 30 % (fan 100 %), `x` stop, `o` OLED test,
@@ -78,8 +98,8 @@ What it does:
   at every power-up. If a FAN STALL fault appears in MANUAL, raise those minimums.
 - **Peltier power**: slider from 30 % to 100 % (`P<n>`). Lower power heats/cools more slowly but the battery lasts
   longer. Saved on the device.
-- A fault (sensor, over/under temperature, fan stall) cannot be cleared from the phone: fix the cause and turn the
-  ThermoX off and on.
+- A fault (sensor, over/under temperature, fan stall) stops the Peltier. A lost sensor clears by itself when it
+  reads again; the others clear on the next **Start** or button press once the water is back inside 5..55 C.
 
 How to open it:
 1. Upload `phone.html` together with the rest of `dashboard/` to the HTTPS host (step 3 below), then open
