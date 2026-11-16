@@ -4,9 +4,9 @@ name: Compile ThermoX firmware
 
 on:
   push:
-    paths: ["ThermoX/**", "ThermoX_Bench/**", ".github/workflows/compile-firmware.yml"]
+    paths: ["ThermoX/**", "ThermoX_Bench/**", "ThermoX_BTS_Test/**", ".github/workflows/compile-firmware.yml"]
   pull_request:
-    paths: ["ThermoX/**", "ThermoX_Bench/**", ".github/workflows/compile-firmware.yml"]
+    paths: ["ThermoX/**", "ThermoX_Bench/**", "ThermoX_BTS_Test/**", ".github/workflows/compile-firmware.yml"]
   workflow_dispatch:
 
 jobs:
@@ -29,3 +29,6 @@ jobs:
 
       - name: Compile ThermoX_Bench (hardware test)
         run: arduino-cli compile --fqbn esp32:esp32:esp32 --warnings default ThermoX_Bench
+
+      - name: Compile ThermoX_BTS_Test (BTS7960 test)
+        run: arduino-cli compile --fqbn esp32:esp32:esp32 --warnings default ThermoX_BTS_Test
