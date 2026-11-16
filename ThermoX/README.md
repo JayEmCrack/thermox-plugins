@@ -56,11 +56,11 @@ If the OLED says HEATING or COOLING but M+ / M- stays at 0 V: the BTS7960 needs 
 R_IS and L_IS stay unconnected.
 
 ## BTS7960 test sketch
-`ThermoX_BTS_Test/ThermoX_BTS_Test.ino` is for a BTS7960 whose M+ / M- stays at 0 V. It needs no sensor and no fan
-signal. At power-up it tests the four signal pins (R_EN, RPWM, LPWM, L_EN): driven HIGH and LOW and read back (finds
-a short), then read with a weak pull-up (shows whether the BTS7960 is seen on the wire). Button 1 switches RPWM on,
-button 2 LPWM, as plain HIGH / LOW levels (no PWM) for up to 60 s, and the Serial Monitor (115200) lists what to
-measure on the BTS7960: B+ to B- 12 V, VCC 5 V, the four signals, then M+ to M-. Flash `ThermoX.ino` again afterwards.
+`ThermoX_BTS_Test/ThermoX_BTS_Test.ino` is for a BTS7960 whose M+ / M- stays at 0 V. It needs no library, button,
+OLED, sensor or fan signal. 3 s after power-up it switches the BTS7960 on by itself with plain HIGH levels (no PWM):
+60 s on, 15 s rest, again and again; the blue LED on the ESP32 is lit while it is on. The Serial Monitor (115200)
+prints the four pin levels every second. While it is on, measure on the BTS7960: B+ to B- 12 V, VCC 5 V, R_EN, L_EN
+and RPWM 3.3 V, then M+ to M- 12 V. `USE_RPWM = false` tests the other direction. Flash `ThermoX.ino` again afterwards.
 
 ## Bench test sketch
 `ThermoX_Bench/ThermoX_Bench.ino` tests the hardware before the real firmware goes on. Same pins. Serial Monitor at
