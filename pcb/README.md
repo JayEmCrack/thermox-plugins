@@ -33,6 +33,10 @@ signal safe on their own, so do the one-time check on page 9 before plugging in 
 out, FG (Q8) must read about 0 V and PWM (O8) at most 5 V. `ThermoX.ino` has `FAN_PWM_INVERTED = false` for this
 resistor-only wiring, a 60 % fan limit (`FAN_MAX_PCT`) and a software filter for tach noise.
 
+If the yellow FG wire reads more than 3.3 V, leave it unconnected (tape it off, Q8 stays empty) and keep
+`ENABLE_FAN_TACH = false` in `ThermoX.ino` (the default). The fan is still speed-controlled through the blue PWM wire;
+only the rpm reading and the FAN STALL check are off, so check by eye that the fan spins.
+
 ## Full board (7 x 9 cm) with F1 and C1 on it
 
 `thermox_perfboard_7x9_full_rows25.4.pdf` is the same board on a 7 x 9 cm universal PCB (24 x 30 holes). Every part

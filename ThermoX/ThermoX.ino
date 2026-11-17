@@ -86,7 +86,11 @@ constexpr uint32_t REVERSE_COOLDOWN_MS = 60000; // Peltier must rest this long (
 constexpr uint32_t FAN_RUNON_MS = 0;         // fan run-on after TEC stops; 0 = fan off immediately
 constexpr uint32_t SENSOR_FAIL_MS = 5000;
 constexpr uint32_t FAN_STALL_GRACE_MS = 5000;
-constexpr uint16_t FAN_MIN_RPM = 500;        // below this while commanded => stall
+// Fan speed sensor (FG, yellow wire). false = the yellow wire is NOT connected (tape it off): the fan is still
+// controlled by PWM, but there is no rpm reading and no FAN STALL check. Check by eye that the fan spins.
+// true only after measuring the yellow wire alone (fan on 12 V, ESP32 out): it must read about 0 V.
+constexpr bool     ENABLE_FAN_TACH = false;
+constexpr uint16_t FAN_MIN_RPM = 500;        // below this while commanded => stall (only with ENABLE_FAN_TACH)
 constexpr uint8_t  FAN_PULSES_PER_REV = 2;   // SUNON 4-wire FG standard
 
 // Fan speed limit. The SUNON at 100 % is very fast and loud and pulls the most current, so the fan is
@@ -395,7 +399,8 @@ void control() {
   // Fan stall protection: TEC without airflow overheats its heat sink
   if (fanDuty > 0) {
     if (fanOnSince == 0) fanOnSince = now;
-    if (now - fanOnSince > FAN_STALL_GRACE_MS && fanRpm < FAN_MIN_RPM && mode != IDLE) enterFault(F_FAN);
+    if (ENABLE_FAN_TACH && now - fanOnSince > FAN_STALL_GRACE_MS && fanRpm < FAN_MIN_RPM && mode != IDLE)
+      enterFault(F_FAN);
   } else fanOnSince = 0;
 }
 
@@ -469,7 +474,9 @@ void drawUI() {
   else oled.drawStr(8, 102, MODE_TXT[mode]);
 
   oled.setFont(u8g2_font_6x12_tr);
-  snprintf(b, sizeof b, "Fan %u rpm", fanRpm); oled.drawStr(2, 124, b);
+  if (ENABLE_FAN_TACH) snprintf(b, sizeof b, "Fan %u rpm", fanRpm);
+  else snprintf(b, sizeof b, "Fan %u%%", fanDuty * 100U / 255);     // no FG wire: show the speed setting
+  oled.drawStr(2, 124, b);
   snprintf(b, sizeof b, "%u%%", tecDuty * 100 / 255); oled.drawStr(98, 124, b);
   oled.sendBuffer();
 }
@@ -704,7 +711,7 @@ void setup() {
 
   pinMode(PIN_BTN_DOWN, INPUT_PULLUP); pinMode(PIN_BTN_UP, INPUT_PULLUP);
   pinMode(PIN_FAN_TACH, INPUT);                  // GPIO35: R8 1k from the fan FG wire, R1 10k pull-up to 3.3V (never 5 V or 12 V)
-  attachInterrupt(digitalPinToInterrupt(PIN_FAN_TACH), onTach, FALLING);
+  if (ENABLE_FAN_TACH) attachInterrupt(digitalPinToInterrupt(PIN_FAN_TACH), onTach, FALLING);
   if (ENABLE_BATTERY_SENSE) analogSetPinAttenuation(PIN_BATT_ADC, ADC_11db);
   if (ENABLE_CHARGE_DETECT) pinMode(PIN_CHG_DET, INPUT);   // R6 33k pulls it down when no charger
 
