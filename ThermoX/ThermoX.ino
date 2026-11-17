@@ -17,7 +17,8 @@
    - Phone control over Bluetooth Low Energy (page: dashboard/phone.html): live status, set the target,
      start/stop a run, fan AUTO or MANUAL %, Peltier power limit (see README.md)
    - The last target and the power limit are saved and come back after power-up (no run starts by itself)
-   - Low-battery cutoff (needs ENABLE_BATTERY_SENSE): stops the Peltier and blocks new runs until the
+   - Low-battery cutoff: OFF (ENABLE_LOW_BATT_CUTOFF = false). The battery % is still shown; the BMS still cuts
+     the power when the cells are empty. With it on (needs ENABLE_BATTERY_SENSE) it stops the Peltier and blocks new runs until the
      battery recovers
    - Charging (needs ENABLE_CHARGE_DETECT): while a charger is plugged into J10 the OLED shows CHARGING,
      the Peltier stays off and no run can start, from the buttons or the phone
@@ -68,6 +69,9 @@ constexpr float   BATT_DIVIDER = 5.545f;    // (100k + 22k) / 22k
 constexpr float   BATT_EMPTY_V = 3.3f;      // per cell, Li-ion
 constexpr float   BATT_FULL_V  = 4.15f;
 constexpr uint8_t BATT_CELLS = 3;           // Li-ion cells in series (3S pack); keep GPIO36 below ~3.1 V
+// Low-battery cutoff. false = removed: ThermoX keeps running on a low battery until the BMS cuts the power
+// (about 3.0 V per cell). The battery % on the OLED and the phone still works. true = Peltier stops below 3.30 V per cell.
+constexpr bool    ENABLE_LOW_BATT_CUTOFF = false;
 constexpr float   LOW_BATT_CUTOFF_V = 3.30f;  // per cell: Peltier stops below this...
 constexpr uint32_t LOW_BATT_DELAY_MS = 5000;  // ...for this long (ignores short dips under load)
 constexpr float   LOW_BATT_RESUME_V = 3.60f;  // per cell: new runs allowed again above this
@@ -372,8 +376,9 @@ void control() {
   if (waterC >= OVERTEMP_CUTOFF)  { enterFault(F_OVERTEMP);  return; }
   if (waterC <= UNDERTEMP_CUTOFF) { enterFault(F_UNDERTEMP); return; }
 
-  // Low battery: stop the run and refuse new ones until the battery recovers (not latched).
-  if (ENABLE_BATTERY_SENSE && !isnan(battV) && battV < BATT_PRESENT_V) { lowBatt = false; lowBattSince = 0; }
+  // Low battery: stop the run and refuse new ones until the battery recovers (not latched). Off unless ENABLE_LOW_BATT_CUTOFF.
+  if (!ENABLE_LOW_BATT_CUTOFF) { lowBatt = false; lowBattSince = 0; }
+  else if (ENABLE_BATTERY_SENSE && !isnan(battV) && battV < BATT_PRESENT_V) { lowBatt = false; lowBattSince = 0; }
   else if (ENABLE_BATTERY_SENSE && !isnan(battV)) {
     float cell = battV / BATT_CELLS;
     if (cell < LOW_BATT_CUTOFF_V) {
