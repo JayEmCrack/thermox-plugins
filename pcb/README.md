@@ -22,6 +22,17 @@ The holes are named like a chess board: columns A-R, rows 1-24. Each PDF has ten
 
 `thermox_wiring_diagram.pdf` has pages 6-9 on their own, for printing.
 
+### Fan protection (R7, R8)
+
+The fan wires reach the ESP32 through two 1k resistors that stand upright next to the FAN header:
+- **R7 1k** (body over O10, bent leg in O9): GPIO23 to the fan PWM (blue) wire.
+- **R8 1k** (body over Q10, bent leg in Q9): fan FG (yellow) wire to GPIO35. R1 10k still pulls GPIO35 up to 3.3 V.
+
+They limit the current into GPIO23 / GPIO35 if a fan wire carries more than 3.3 V. They do not make a 5 V or 12 V
+signal safe on their own, so do the one-time check on page 9 before plugging in the ESP32: with 12 V on and the ESP32
+out, FG (Q8) must read about 0 V and PWM (O8) at most 5 V. `ThermoX.ino` has `FAN_PWM_INVERTED = false` for this
+resistor-only wiring, a 60 % fan limit (`FAN_MAX_PCT`) and a software filter for tach noise.
+
 ## Full board (7 x 9 cm) with F1 and C1 on it
 
 `thermox_perfboard_7x9_full_rows25.4.pdf` is the same board on a 7 x 9 cm universal PCB (24 x 30 holes). Every part

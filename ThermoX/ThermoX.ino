@@ -10,8 +10,10 @@
    - At the target the Peltier and fan switch off (IDLE) and stay off, even if the water then
      drifts, until the next button press. Nothing starts by itself at power-up either.
    - Hot <-> cold reversal is blocked for REVERSE_COOLDOWN_MS (60 s) with the Peltier off
-   - Fan: full duty in COOL, ~50 % in HEAT, off when idle (only the OLED stays on)
-   - SH1107 128x128 OLED shows water temp, target, mode, fan RPM, battery
+   - Fan: FAN_AUTO_COOL_PCT in COOL, FAN_AUTO_HEAT_PCT in HEAT, off when idle (only the OLED stays on).
+     Nothing ever drives the fan above FAN_MAX_PCT, not even a fault or the phone.
+   - SH1107 128x128 OLED, mounted in LANDSCAPE (on its side): the picture is turned with OLED_ROTATION.
+     It shows water temp, target, mode, fan RPM, battery
    - Phone control over Bluetooth Low Energy (page: dashboard/phone.html): live status, set the target,
      start/stop a run, fan AUTO or MANUAL %, Peltier power limit (see README.md)
    - The last target and the power limit are saved and come back after power-up (no run starts by itself)
@@ -87,6 +89,25 @@ constexpr uint32_t FAN_STALL_GRACE_MS = 5000;
 constexpr uint16_t FAN_MIN_RPM = 500;        // below this while commanded => stall
 constexpr uint8_t  FAN_PULSES_PER_REV = 2;   // SUNON 4-wire FG standard
 
+// Fan speed limit. The SUNON at 100 % is very fast and loud and pulls the most current, so the fan is
+// capped: nothing (AUTO, MANUAL from the phone, or a fault) drives it above FAN_MAX_PCT.
+// Raise FAN_MAX_PCT only if the heat sink gets too hot while cooling.
+constexpr uint8_t  FAN_MAX_PCT       = 60;   // hard limit, %
+constexpr uint8_t  FAN_AUTO_COOL_PCT = 60;   // AUTO speed while COOLING, %
+constexpr uint8_t  FAN_AUTO_HEAT_PCT = 35;   // AUTO speed while HEATING, %
+constexpr uint8_t  FAN_RUNON_PCT     = 35;   // speed during the run-on after a run (FAN_RUNON_MS), %
+#define FAN_PCT_TO_DUTY(pct) ((uint8_t)(((pct) * 255U + 50) / 100))   // fan % -> PWM duty 0..255
+constexpr uint8_t  FAN_MAX_DUTY = FAN_PCT_TO_DUTY(FAN_MAX_PCT);
+// Fan PWM wiring. false = GPIO23 -> R7 1k -> fan PWM wire (resistor only, as on the universal PCB).
+// true  = only if an NPN transistor sits between GPIO23 and the fan (it turns the signal upside down).
+constexpr bool     FAN_PWM_INVERTED = false;
+// Tach glitch filter (instead of a capacitor): FG pulses closer together than this are noise and are
+// not counted. 300 us still counts a fan up to 50,000 rpm (2 pulses per turn).
+constexpr uint32_t FAN_TACH_MIN_US = 300;
+// Tach plausibility: a reading above this is noise, not a real speed. It then counts as 0 rpm, so a fan
+// that has really stopped is still caught by the stall check. Set it a little above your fan's 100 % speed.
+constexpr uint16_t FAN_RPM_MAX_VALID = 25000;
+
 constexpr uint32_t PWM_TEC_HZ = 20000, PWM_FAN_HZ = 25000;
 constexpr uint8_t  PWM_BITS = 8;
 
@@ -99,8 +120,11 @@ constexpr uint32_t LOG_PERIOD_MS = 2000;   // 1-5 s is reasonable
 // status and can set the target, start or stop a run and set the fan. The Classic Bluetooth logging
 // above keeps working at the same time.
 constexpr bool     ENABLE_BLE_CONTROL = true;
-constexpr uint8_t  FAN_MIN_PCT_COOL = 70;    // MANUAL fan never goes below this % while COOLING (hot side needs air)
-constexpr uint8_t  FAN_MIN_PCT_HEAT = 40;    // ... or below this % while HEATING
+constexpr uint8_t  FAN_MIN_PCT_COOL = 50;    // MANUAL fan never goes below this % while COOLING (hot side needs air)
+constexpr uint8_t  FAN_MIN_PCT_HEAT = 30;    // ... or below this % while HEATING
+static_assert(FAN_MAX_PCT <= 100 && FAN_AUTO_COOL_PCT <= FAN_MAX_PCT && FAN_AUTO_HEAT_PCT <= FAN_MAX_PCT &&
+              FAN_RUNON_PCT <= FAN_MAX_PCT && FAN_MIN_PCT_COOL <= FAN_MAX_PCT && FAN_MIN_PCT_HEAT <= FAN_MAX_PCT,
+              "fan speeds must not be above FAN_MAX_PCT");
 constexpr uint32_t BLE_PING_MS = 1000;       // how often the phone is told to refresh
 #define BLE_SERVICE_UUID "7a3c0000-63b5-4559-b515-2c37cc077186"
 #define BLE_STATUS_UUID  "7a3c0001-63b5-4559-b515-2c37cc077186"   // read:   status (JSON)
@@ -119,7 +143,10 @@ OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature ds(&oneWire);
 // GME128128-01 (1.5" SH1107 128x128) needs x offset 0: the PIMORONI variant. The plain
 // U8G2_SH1107_128X128 driver adds a 96-pixel offset, which shifts and wraps the picture.
-U8G2_SH1107_PIMORONI_128X128_F_HW_I2C oled(U8G2_R0, U8X8_PIN_NONE);
+// The OLED sits in LANDSCAPE in the case (module on its side), so the picture is turned 90 degrees.
+// If the text is upside down on your unit, change U8G2_R1 to U8G2_R3. U8G2_R0 = the old upright mount.
+#define OLED_ROTATION U8G2_R1
+U8G2_SH1107_PIMORONI_128X128_F_HW_I2C oled(OLED_ROTATION, U8X8_PIN_NONE);
 
 float waterC = NAN, targetC = TARGET_DEFAULT;
 Mode mode = IDLE; Fault fault = F_NONE;
@@ -148,13 +175,21 @@ Preferences prefs;
 
 // Declared before the first function so the prototype Arduino generates for btnStep() compiles.
 struct Btn { uint8_t pin; bool last; uint32_t since, rep; };
+void logEvent(const char* fmt, ...);         // defined further down; declared here so every compiler finds it
 
-void IRAM_ATTR onTach() { tachPulses++; }
+void IRAM_ATTR onTach() {
+  static uint32_t lastUs = 0;
+  uint32_t now = micros();
+  if (now - lastUs < FAN_TACH_MIN_US) return;   // too soon after the last pulse: noise
+  lastUs = now;
+  tachPulses = tachPulses + 1;
+}
 
 // ---------------- Outputs ----------------
 void setFan(uint8_t d) {
+  if (d > FAN_MAX_DUTY) d = FAN_MAX_DUTY;    // speed limit: never faster than FAN_MAX_PCT
   if (d > fanDuty) fanOnSince = 0;           // faster: give the fan time to spin up before the stall check
-  fanDuty = d; ledcWrite(PIN_FAN_PWM, d);
+  fanDuty = d; ledcWrite(PIN_FAN_PWM, FAN_PWM_INVERTED ? 255 - d : d);
 }
 
 // Fan duty for mode m. AUTO uses autoDuty (the normal behaviour). MANUAL uses the phone's %, but
@@ -162,8 +197,8 @@ void setFan(uint8_t d) {
 uint8_t fanDutyFor(Mode m, uint8_t autoDuty) {
   fanFloorPct = (m == COOL) ? FAN_MIN_PCT_COOL : (m == HEAT) ? FAN_MIN_PCT_HEAT : 0;
   if (fanCtl == FAN_AUTO) return autoDuty;
-  uint8_t pct = max(fanManualPct, fanFloorPct);
-  return (uint8_t)((pct * 255U + 50) / 100);
+  uint8_t pct = min(max(fanManualPct, fanFloorPct), FAN_MAX_PCT);
+  return FAN_PCT_TO_DUTY(pct);
 }
 
 void tecStop() {
@@ -197,7 +232,8 @@ void readFan() {
   static uint32_t t0 = 0; uint32_t now = millis();
   if (now - t0 < 1000) return;
   noInterrupts(); uint32_t p = tachPulses; tachPulses = 0; interrupts();
-  fanRpm = (uint32_t)p * 60000UL / (now - t0) / FAN_PULSES_PER_REV;
+  uint32_t rpm = (uint32_t)p * 60000UL / (now - t0) / FAN_PULSES_PER_REV;
+  fanRpm = rpm > FAN_RPM_MAX_VALID ? 0 : (uint16_t)rpm;   // noise is not a speed: count it as stopped
   t0 = now;
 }
 
@@ -279,7 +315,7 @@ void debugLine() {
 void control() {
   uint32_t now = millis();
 
-  // A fault keeps the Peltier off and the fan at full speed. A lost sensor clears by itself as soon as it
+  // A fault keeps the Peltier off and the fan at FAN_MAX_PCT. A lost sensor clears by itself as soon as it
   // reads again. The other faults clear on the next button press (or phone start), and only once the water
   // is back inside the limits; that press then starts a run as usual. A fan that is still stalled faults
   // again after FAN_STALL_GRACE_MS.
@@ -349,10 +385,10 @@ void control() {
 
   if (mode == IDLE) {
     tecStop();
-    setFan(fanDutyFor(IDLE, (now - lastTecActive < FAN_RUNON_MS) ? 128 : 0));
+    setFan(fanDutyFor(IDLE, (now - lastTecActive < FAN_RUNON_MS) ? FAN_PCT_TO_DUTY(FAN_RUNON_PCT) : 0));
   } else {
     tecDrive(mode, (uint8_t)((TEC_MAX_DUTY * tecPowerPct + 50) / 100));
-    setFan(fanDutyFor(mode, mode == COOL ? 255 : 128));   // AUTO: full in cooling, ~50 % in heating
+    setFan(fanDutyFor(mode, FAN_PCT_TO_DUTY(mode == COOL ? FAN_AUTO_COOL_PCT : FAN_AUTO_HEAT_PCT)));
     lastTecActive = now; lastDriven = mode;
   }
 
@@ -561,7 +597,7 @@ void bleBegin() {
 //   S          start a run toward the current target
 //   X          stop the run (Peltier off)
 //   FA         fan AUTO (the normal behaviour)
-//   FM<0-100>  fan MANUAL at this %, never below FAN_MIN_PCT_* while the Peltier runs
+//   FM<0-100>  fan MANUAL at this %, never below FAN_MIN_PCT_* while the Peltier runs, never above FAN_MAX_PCT
 //   P<30-100>  Peltier power limit, % (saved)
 // Fault cutoffs, the 60 s reversal rest and the fault latch work exactly as with the buttons.
 void handlePhone() {
@@ -667,7 +703,7 @@ void setup() {
   if (ENABLE_BLE_CONTROL) bleBegin();            // after the Peltier and fan outputs are safely off
 
   pinMode(PIN_BTN_DOWN, INPUT_PULLUP); pinMode(PIN_BTN_UP, INPUT_PULLUP);
-  pinMode(PIN_FAN_TACH, INPUT);                  // GPIO35: external 10k pull-up to 3.3V
+  pinMode(PIN_FAN_TACH, INPUT);                  // GPIO35: R8 1k from the fan FG wire, R1 10k pull-up to 3.3V (never 5 V or 12 V)
   attachInterrupt(digitalPinToInterrupt(PIN_FAN_TACH), onTach, FALLING);
   if (ENABLE_BATTERY_SENSE) analogSetPinAttenuation(PIN_BATT_ADC, ADC_11db);
   if (ENABLE_CHARGE_DETECT) pinMode(PIN_CHG_DET, INPUT);   // R6 33k pulls it down when no charger
@@ -677,7 +713,7 @@ void setup() {
   oled.begin();
 
   ds.begin(); ds.setWaitForConversion(false); ds.setResolution(12);
-  Serial.printf("\nThermoX ready. DS18B20 sensors found: %d\n", ds.getDeviceCount());
+  Serial.printf("\nThermoX ready. DS18B20 sensors found: %d. Fan limit %u %%\n", ds.getDeviceCount(), (unsigned)FAN_MAX_PCT);
   lastGoodRead = millis();
 }
 

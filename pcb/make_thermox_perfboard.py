@@ -2,6 +2,8 @@
 """ThermoX on a universal PCB (perfboard): a 5 x 7 cm board, 18 x 24 holes, 2.54 mm pitch.
 
 Same circuit and pins as ThermoX.ino (Button 1 GPIO18, fan FG GPIO35, battery gauge GPIO36, charger detect GPIO19).
+The fan PWM and FG wires reach the ESP32 through 1k resistors (R7, R8) that stand next to the FAN header: they limit
+the current into GPIO23 / GPIO35 if a fan wire ever carries more than 3.3 V.
 The holes are named like a chess board: columns A-R from the left (parts side up), rows 1-24 from the top.
 Parts go on top. All connections are on the bottom: bare tinned wire trails along the holes, plus four
 insulated wires (W1-W4) where a trail would cross another net.
@@ -123,6 +125,11 @@ def design(spacing, full=False):
     def res(ref, val, a, c, na, nc, under=False):
         two(ref, "res", val, a, c, na, nc, "1", "2", 0.45, 0.6, under)
 
+    def resup(ref, val, body, leg, nbody, nleg, side):   # standing resistor: body over 'body', bent leg into 'leg'
+        hb, hl = H(body), H(leg)
+        b.part(ref=ref, kind="resup", label=val, pins=[(hb, nbody, "1"), (hl, nleg, "2")],
+               body=(hb[0] - 0.45, hb[1] - 0.45, hb[0] + 0.45, hb[1] + 0.45), extra={"side": side})
+
     def diode(ref, val, an, ca, na, nc):
         two(ref, "dio", val, an, ca, na, nc, "A", "K", 1.05, 1.1)
 
@@ -136,7 +143,7 @@ def design(spacing, full=False):
     diode("D2", "1N5822", "J5", "D5", "CHG", "BAT+")
     diode("D1", "1N5822", "K5", "P5", "CHG", "BUS")
     res("R3", "100k", "B4", "B8", "BAT+", "BATS")
-    header("FAN", "FAN", ["O8", "P8", "Q8", "R8"], ["PWM", "BUS", "FG", "GND"], ["PWM", "12V", "FG", "GND"])
+    header("FAN", "FAN", ["O8", "P8", "Q8", "R8"], ["FPWM", "BUS", "FGF", "GND"], ["PWM", "12V", "FG", "GND"])
     if full:
         t("GND", "M1", "R1", "R11", "Q11", thick=True)
     else:
@@ -169,7 +176,12 @@ def design(spacing, full=False):
     res("R6", "33k", "N15", "N20", "CHGS", "GND")
     t("3V3", (X, 24), "R24", "R12")
     t("GND", (X, 23), "Q23", "Q11")
-    t("PWM", (X, 10), "O10", "O8")
+    # fan protection: 1k in series with the PWM and the FG wire, standing just below the FAN header
+    resup("R7", "1k", "O10", "O9", "PWM", "FPWM", "left")
+    resup("R8", "1k", "Q10", "Q9", "FG", "FGF", "right")
+    t("PWM", (X, 10), "O10")
+    t("FPWM", "O9", "O8")
+    t("FGF", "Q8", "Q9")
     t("SCL", (X, 11), "P11", "P12")
     t("SDA", (X, 14), "O14", "O12")
     t("CHGS", (X, 15), "O15")
@@ -177,7 +189,8 @@ def design(spacing, full=False):
     t("BTN1", (X, 16), "P16")
     # ---- insulated wires on the bottom (they may cross trails; keep them away from the antenna end)
     b.wire("W1", "GND", "A15", "F15", [], "button 2 GND")
-    b.wire("W2", "FG", "B14", "Q8", [(2.4, 13.5), (X + 0.65, 13.5), (X + 0.65, 9.7), (17.0, 9.7)], "fan tach", 1)
+    b.wire("W2", "FG", "B14", "Q10", [(2.4, 13.5), (X + 0.65, 13.5), (X + 0.65, 10.5), (17.0, 10.5)],
+           "fan tach, from R8", 1)
     b.wire("W3", "DQ", "D19", "P20", [(4.0, 18.5), (X + 0.65, 18.5), (X + 0.65, 20.5), (16.0, 20.5)], "temp sensor data", 1)
     b.wire("W4", "CHG", "K4", "O19", [(11.0, 3.6), (X + 1.5, 3.6), (X + 1.5, 19.5), (15.0, 19.5)], "charger detect", 2)
     if full:
@@ -216,7 +229,7 @@ NETLIST = {
     "R1": ("FG", "3V3"), "R2": ("DQ", "3V3"), "R3": ("BAT+", "BATS"), "R4": ("BATS", "GND"), "C4": ("BATS", "GND"),
     "R5": ("CHG", "CHGS"), "R6": ("CHGS", "GND"), "D1": ("CHG", "BUS"), "D2": ("CHG", "BAT+"),
     "POWER": ("GND", "BUS"), "CHARGE": ("CHG", "GND"), "BAT": ("BAT+",), "LMI": ("BUS",), "LMO": ("GND", "5V"),
-    "FAN": ("PWM", "BUS", "FG", "GND"), "OLED": ("SDA", "SCL", "GND", "3V3"), "TEMP": ("DQ", "GND", "3V3"),
+    "FAN": ("FPWM", "BUS", "FGF", "GND"), "R7": ("PWM", "FPWM"), "R8": ("FG", "FGF"), "OLED": ("SDA", "SCL", "GND", "3V3"), "TEMP": ("DQ", "GND", "3V3"),
     "BTN1": ("BTN1", "GND"), "BTN2": ("GND", "BTN2"), "BTSA": ("R_EN", "RPWM", "LPWM"), "BTSB": ("L_EN", "GND", "5V"),
 }
 GPIO = {"VP": 36, "VN": 39, "TX0": 1, "RX0": 3, "TX2": 17, "RX2": 16, "EN": None, "GND": None, "VIN": None, "3V3": None}
@@ -469,8 +482,15 @@ def top_page(pdf, b, tag):
             ax.add_patch(Circle((xa, ya), 0.42 * s, fc="#e8c99b", ec="#555", lw=0.6, zorder=4))
             ax.plot([xa, xc], [ya + 0.35 * s, ya + 0.35 * s], color="#777", lw=1.2, zorder=3)
             ax.plot([xc, xc], [ya + 0.35 * s, yc], color="#777", lw=1.2, zorder=3)
-            ax.text(xa, ya + 0.85 * s, f"{p['ref']} {p['label']} standing", ha="center", fontsize=5.5, zorder=6,
-                    weight="bold", bbox=dict(fc="white", ec="none", pad=0.3, alpha=0.8))
+            side = p["extra"].get("side", "above")
+            if side == "above":
+                ax.text(xa, ya + 0.85 * s, f"{p['ref']} {p['label']} standing", ha="center", fontsize=5.5, zorder=6,
+                        weight="bold", bbox=dict(fc="white", ec="none", pad=0.3, alpha=0.8))
+            else:
+                dx = -0.5 if side == "left" else 0.5
+                ax.text(xa + dx * s, ya, f"{p['ref']}\n{p['label']}", ha="right" if side == "left" else "left",
+                        va="center", fontsize=5.2, zorder=8, weight="bold", linespacing=0.9,
+                        bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.85))
         if k == "pads":
             for h, net, lab in p["pins"]:
                 x, y = g(*h)
@@ -555,6 +575,7 @@ def top_page(pdf, b, tag):
         "D1, D2 (1N5822): the grey band (stripe) is the cathode. D2 stripe at D5, D1 stripe at P5. Their legs are thick:",
         "    open holes D5, J5, K5, P5 with a 1.5 mm drill bit.",
         "R5 and R6 lie flat side by side: R6 from N15 to N20, R5 from O15 to O19.",
+        "R7 and R8 (1k, fan protection) STAND upright: body over O10 / Q10, the bent leg in O9 / Q9.",
         "FAN, OLED, TEMP and BTN1 headers lie ACROSS (left to right). Read the pin names under each pin.",
         "Nothing under the ESP32 antenna (hatched area): no parts and no trails.",
     ]
@@ -722,7 +743,7 @@ def true_template(ax, b, left, top, side):
                         zorder=7, rotation=90 if ha[0] == hc[0] else 0)
             elif k == "resup":
                 x, y = g(*p["pins"][0][0])
-                ax.text(x - 0.9, y + 1.5, "R6 33k", fontsize=3.0, ha="center", weight="bold", zorder=7)
+                ax.text(x, y + 1.6, f"{p['ref']} {p['label']}", fontsize=3.0, ha="center", weight="bold", zorder=7)
             elif k == "termv":
                 ax.text(cx + 1.2, cy, p["label"], fontsize=3.3, ha="center", va="center", weight="bold", zorder=7,
                         rotation=90)
@@ -829,7 +850,7 @@ def truesize_page(pdf, b, tag):
         "3. Push a needle through the corner holes A1, R1, A24 and R24 into the board holes so every printed hole sits",
         "   on a real hole. Tape the paper down (thin double-sided tape at the edges).",
         "4. Push each part through the paper where it is drawn: low parts first (R1, R2, R4, C4 under the ESP32), then",
-        "   R3, R5, R6, D1, D2 (white band = stripe), the 2 female headers, the male headers, the 2 screw terminals.",
+        "   R3, R5, R6, R7 + R8 (standing), D1, D2 (white band = stripe), the female headers, male headers, terminals.",
         "5. Turn the board over. Copy B shows the same holes seen from the bottom: make every coloured line with bare",
         "   tinned wire / solder from hole to hole, and the dashed W1-W4 with thin insulated wire.",
         "6. Use pages 2-4 (big drawings and the hole-by-hole checklist) and tick each line when it is done.",
@@ -872,6 +893,8 @@ PLACE = [
     ("5", "R3 100k", "B4 to B8", "flat, along column B"),
     ("6", "R5 100k", "O15 to O19", "flat, along column O"),
     ("7", "R6 33k", "N15 to N20", "flat, along column N"),
+    ("7a", "R7 1k", "O10 (body) and O9", "standing, fan PWM protection"),
+    ("7b", "R8 1k", "Q10 (body) and Q9", "standing, fan FG protection"),
     ("8", "D2 1N5822", "J5 to D5", "stripe at D5 (open the holes to 1.5 mm)"),
     ("9", "D1 1N5822", "K5 to P5", "stripe at P5 (open the holes to 1.5 mm)"),
     ("10", "ESP32 female headers 1x15", "C10-C24 and {R}10-{R}24", "plug the ESP32 in them to align, then solder"),
@@ -885,7 +908,7 @@ PLACE = [
     ("18", "POWER screw terminal 2-pin", "E2 GND, G2 12V", "wire openings toward the top edge"),
     ("19", "CHARGE screw terminal 2-pin", "K2 +, M2 -", "wire openings toward the top edge"),
 ]
-PLACE_FULL = PLACE[:17] + [
+PLACE_FULL = PLACE[:19] + [
     ("18", "CHARGE screw terminal 2-pin", "K2 +, M2 -", "wire openings toward the top edge"),
     ("19", "F1 fuse holder 5 x 20 mm", "V7 and V16", "open the 2 holes to 1.3 mm; 10 A slow-blow fuse"),
     ("20", "C1 2200 uF 25 V", "W20 (+) and U20 (- stripe)", "standing, stripe (-) to U20"),
@@ -969,6 +992,7 @@ def steps2_page(pdf, b, tag):
             "[ ] Must beep:      X2 to M2, X2 to X26, X2 to U20, X2 to Q12 (all GND)   X24 to W20 and to P8, G2 (12V via W5)",
             "[ ] Must beep:      X4 to X24 with the fuse in (through F1)   B2 to D5 (BAT+)   K2 to O19 (CHG, via W4)",
         ]
+    checks.append("[ ] Ohm mode:       O8 to O10 = 1 k (R7)   Q8 to Q10 = 1 k (R8)   Q10 to C14 beeps (FG, via W2)")
     for t in checks:
         line(t, family="monospace", fs=6.6)
     y -= 1.5
@@ -1364,6 +1388,7 @@ BOM = [
         ("2", "Resistor 100 kOhm 1/4 W", "R3, R5"),
         ("1", "Resistor 22 kOhm 1/4 W", "R4"),
         ("1", "Resistor 33 kOhm 1/4 W", "R6"),
+        ("2", "Resistor 1 kOhm 1/4 W", "R7, R8 (fan PWM and FG)"),
         ("1", "Ceramic capacitor 100 nF (104)", "C4"),
         ("2", "Schottky diode 1N5822 (3 A)", "D1, D2"),
         ("1 m", "Bare tinned copper wire 0.8-1 mm", "trails"),
@@ -1507,8 +1532,8 @@ def fuse_fan_page(pdf, tag):
     y -= 4
     ax.text(10, y, "FAN: SUNON 40 x 40 x 28 mm, 12 V, 4 wires -> FAN header O8-R8 (row 8, lies across)", fontsize=9.5,
             weight="bold"); y -= 8
-    cols = [("O8", "PWM", "BLUE", "#1f77b4", "speed control, GPIO23"), ("P8", "12V", "RED", RED, "+12 V (after F1)"),
-            ("Q8", "FG", "YELLOW", "#f1c40f", "speed signal (rpm), GPIO35"), ("R8", "GND", "BLACK", BLK, "ground")]
+    cols = [("O8", "PWM", "BLUE", "#1f77b4", "speed, GPIO23 via R7 1k"), ("P8", "12V", "RED", RED, "+12 V (after F1)"),
+            ("Q8", "FG", "YELLOW", "#f1c40f", "rpm, GPIO35 via R8 1k"), ("R8", "GND", "BLACK", BLK, "ground")]
     for i, (hole, pin, colr, cc, use) in enumerate(cols):
         x = 14 + i * 47
         ax.add_patch(Rectangle((x, y - 7), 42, 13, fc="white", ec="0.5", lw=0.6))
@@ -1521,6 +1546,12 @@ def fuse_fan_page(pdf, tag):
         "other colours. If the fan only has 3 wires (no blue), it has no PWM: leave O8 empty, it runs full speed whenever",
         "12 V is on. With only 2 wires there is no FG either: set FAN_MIN_RPM = 0 in ThermoX.ino (stall check off).",
         "The fan needs about 1 A at full speed. Use the Dupont cable only if it is short; a loose plug makes the fan stall.",
+        "",
+        "ESP32 SAFETY CHECK (do it once, ESP32 NOT plugged in): fan on the FAN header, 12 V on, meter black probe on GND.",
+        "  Q8 (FG):  about 0 V or jumping = OK (open collector; R1 pulls it to 3.3 V once the ESP32 is in).",
+        "            5 V or 12 V = this fan has its own pull-up: do NOT plug in the ESP32 (it would get more than 3.3 V).",
+        "  O8 (PWM): 3.3 to 5 V = OK (the fan's own pull-up; R7 1k limits the current).  About 12 V = do NOT plug in.",
+        "R7 and R8 (1k) only limit the current. They do not make a 5 V or 12 V fan signal safe on their own.",
     ]:
         ax.text(12, y, t, fontsize=7, va="top"); y -= 4.4
     pdf.savefig(fig); plt.close(fig)
