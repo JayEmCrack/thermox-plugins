@@ -10,7 +10,7 @@
    - At the target the Peltier and fan switch off (IDLE) and stay off, even if the water then
      drifts, until the next button press. Nothing starts by itself at power-up either.
    - Hot <-> cold reversal is blocked for REVERSE_COOLDOWN_MS (60 s) with the Peltier off
-   - Fan: FAN_AUTO_COOL_PCT in COOL, FAN_AUTO_HEAT_PCT in HEAT, off when idle (only the OLED stays on).
+   - Fan: 60 % in COOL and HEAT (FAN_AUTO_*_PCT), off when idle (only the OLED stays on).
      Nothing ever drives the fan above FAN_MAX_PCT, not even a fault or the phone.
    - SH1107 128x128 OLED, mounted in LANDSCAPE (on its side): the picture is turned with OLED_ROTATION.
      It shows water temp, target, mode, fan RPM, battery
@@ -98,7 +98,7 @@ constexpr uint8_t  FAN_PULSES_PER_REV = 2;   // SUNON 4-wire FG standard
 // Raise FAN_MAX_PCT only if the heat sink gets too hot while cooling.
 constexpr uint8_t  FAN_MAX_PCT       = 60;   // hard limit, %
 constexpr uint8_t  FAN_AUTO_COOL_PCT = 60;   // AUTO speed while COOLING, %
-constexpr uint8_t  FAN_AUTO_HEAT_PCT = 35;   // AUTO speed while HEATING, %
+constexpr uint8_t  FAN_AUTO_HEAT_PCT = 60;   // AUTO speed while HEATING, % (same as cooling)
 constexpr uint8_t  FAN_RUNON_PCT     = 35;   // speed during the run-on after a run (FAN_RUNON_MS), %
 #define FAN_PCT_TO_DUTY(pct) ((uint8_t)(((pct) * 255U + 50) / 100))   // fan % -> PWM duty 0..255
 constexpr uint8_t  FAN_MAX_DUTY = FAN_PCT_TO_DUTY(FAN_MAX_PCT);
