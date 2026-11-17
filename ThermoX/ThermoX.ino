@@ -10,10 +10,10 @@
    - At the target the Peltier and fan switch off (IDLE) and stay off, even if the water then
      drifts, until the next button press. Nothing starts by itself at power-up either.
    - Hot <-> cold reversal is blocked for REVERSE_COOLDOWN_MS (60 s) with the Peltier off
-   - Fan: 60 % in COOL and HEAT (FAN_AUTO_*_PCT), off when idle (only the OLED stays on).
-     Nothing ever drives the fan above FAN_MAX_PCT, not even a fault or the phone.
-   - SH1107 128x128 OLED, mounted in LANDSCAPE (on its side): the picture is turned with OLED_ROTATION.
-     It shows water temp, target, mode, fan RPM, battery
+   - Fan: AUTO 60 % in COOL and HEAT (FAN_AUTO_*_PCT), off when idle (only the OLED stays on).
+     MANUAL from the phone: 0-100 %. A fault runs it at FAN_FAULT_PCT.
+   - SH1107 128x128 OLED, mounted in LANDSCAPE (on its side). It shows water temp, target, mode, fan, battery %.
+     The phone can switch it on/off and set its brightness, orientation and title (saved on the device).
    - Phone control over Bluetooth Low Energy (page: dashboard/phone.html): live status, set the target,
      start/stop a run, fan AUTO or MANUAL %, Peltier power limit (see README.md)
    - The last target and the power limit are saved and come back after power-up (no run starts by itself)
@@ -93,12 +93,11 @@ constexpr bool     ENABLE_FAN_TACH = false;
 constexpr uint16_t FAN_MIN_RPM = 500;        // below this while commanded => stall (only with ENABLE_FAN_TACH)
 constexpr uint8_t  FAN_PULSES_PER_REV = 2;   // SUNON 4-wire FG standard
 
-// Fan speed limit. The SUNON at 100 % is very fast and loud and pulls the most current, so the fan is
-// capped: nothing (AUTO, MANUAL from the phone, or a fault) drives it above FAN_MAX_PCT.
-// Raise FAN_MAX_PCT only if the heat sink gets too hot while cooling.
-constexpr uint8_t  FAN_MAX_PCT       = 60;   // hard limit, %
+// Fan speeds. AUTO (the default) runs the fan at 60 %; MANUAL from the phone can go up to FAN_MAX_PCT.
+constexpr uint8_t  FAN_MAX_PCT       = 100;  // highest speed the phone (MANUAL) can set, %
 constexpr uint8_t  FAN_AUTO_COOL_PCT = 60;   // AUTO speed while COOLING, %
 constexpr uint8_t  FAN_AUTO_HEAT_PCT = 60;   // AUTO speed while HEATING, % (same as cooling)
+constexpr uint8_t  FAN_FAULT_PCT     = 60;   // speed during a fault (Peltier off), %
 constexpr uint8_t  FAN_RUNON_PCT     = 35;   // speed during the run-on after a run (FAN_RUNON_MS), %
 #define FAN_PCT_TO_DUTY(pct) ((uint8_t)(((pct) * 255U + 50) / 100))   // fan % -> PWM duty 0..255
 constexpr uint8_t  FAN_MAX_DUTY = FAN_PCT_TO_DUTY(FAN_MAX_PCT);
@@ -127,6 +126,7 @@ constexpr bool     ENABLE_BLE_CONTROL = true;
 constexpr uint8_t  FAN_MIN_PCT_COOL = 50;    // MANUAL fan never goes below this % while COOLING (hot side needs air)
 constexpr uint8_t  FAN_MIN_PCT_HEAT = 30;    // ... or below this % while HEATING
 static_assert(FAN_MAX_PCT <= 100 && FAN_AUTO_COOL_PCT <= FAN_MAX_PCT && FAN_AUTO_HEAT_PCT <= FAN_MAX_PCT &&
+              FAN_FAULT_PCT <= FAN_MAX_PCT &&
               FAN_RUNON_PCT <= FAN_MAX_PCT && FAN_MIN_PCT_COOL <= FAN_MAX_PCT && FAN_MIN_PCT_HEAT <= FAN_MAX_PCT,
               "fan speeds must not be above FAN_MAX_PCT");
 constexpr uint32_t BLE_PING_MS = 1000;       // how often the phone is told to refresh
@@ -148,9 +148,13 @@ DallasTemperature ds(&oneWire);
 // GME128128-01 (1.5" SH1107 128x128) needs x offset 0: the PIMORONI variant. The plain
 // U8G2_SH1107_128X128 driver adds a 96-pixel offset, which shifts and wraps the picture.
 // The OLED sits in LANDSCAPE in the case (module on its side), so the picture is turned 90 degrees.
-// If the text is upside down on your unit, change U8G2_R1 to U8G2_R3. U8G2_R0 = the old upright mount.
-#define OLED_ROTATION U8G2_R1
-U8G2_SH1107_PIMORONI_128X128_F_HW_I2C oled(OLED_ROTATION, U8X8_PIN_NONE);
+// The phone can change the orientation, brightness and title; they are saved. These are the first-time values.
+// Orientation: 0 = portrait (old upright mount), 1 = landscape, 2 = portrait upside down, 3 = landscape the other way.
+constexpr uint8_t OLED_ROT_DEFAULT = 1;
+constexpr uint8_t OLED_BRIGHT_DEFAULT = 100;   // %
+constexpr char    OLED_TITLE_DEFAULT[] = "ThermoX";
+constexpr uint8_t OLED_TITLE_MAX = 10;         // characters (fits next to the battery % at the top)
+U8G2_SH1107_PIMORONI_128X128_F_HW_I2C oled(U8G2_R1, U8X8_PIN_NONE);
 
 float waterC = NAN, targetC = TARGET_DEFAULT;
 Mode mode = IDLE; Fault fault = F_NONE;
@@ -171,6 +175,10 @@ uint8_t fanManualPct = 50;                   // MANUAL fan speed from the phone,
 uint8_t fanFloorPct = 0;                     // safety minimum for the MANUAL fan right now, %
 uint8_t tecPowerPct = 100;                   // Peltier power limit from the phone, % (saved)
 bool lowBatt = false;                        // low-battery cutoff active
+uint8_t oledRot = OLED_ROT_DEFAULT;          // OLED orientation 0-3 (saved)
+uint8_t oledBright = OLED_BRIGHT_DEFAULT;    // OLED brightness % (saved)
+bool oledOn = true;                          // screen on/off from the phone (back on after every power-up)
+char oledTitle[OLED_TITLE_MAX + 1] = "ThermoX";   // top-left text on the OLED (saved)
 bool charging = false;                       // charger plugged in: ThermoX locked
 bool chargeFull = false;                     // charging and the pack is full for this charger
 int chgPct = -1;                             // charge level on the CHARGING screen (-1 = not measured)
@@ -205,6 +213,30 @@ uint8_t fanDutyFor(Mode m, uint8_t autoDuty) {
   return FAN_PCT_TO_DUTY(pct);
 }
 
+// Applies the phone's OLED settings: orientation, brightness, on/off.
+void oledApply() {
+  switch (oledRot & 3) {
+    case 0: oled.setDisplayRotation(U8G2_R0); break;
+    case 2: oled.setDisplayRotation(U8G2_R2); break;
+    case 3: oled.setDisplayRotation(U8G2_R3); break;
+    default: oled.setDisplayRotation(U8G2_R1); break;
+  }
+  oled.setContrast((uint8_t)(1 + oledBright * 254U / 100));   // 0 % is dim, not black
+  oled.setPowerSave(oledOn ? 0 : 1);
+}
+
+// A title from the phone: 1-OLED_TITLE_MAX characters, letters, digits, space and . - _ # ! ( ) +
+// (nothing that would break the status JSON).
+bool titleOk(const char* t) {
+  size_t n = strlen(t);
+  if (n == 0 || n > OLED_TITLE_MAX) return false;
+  for (size_t i = 0; i < n; i++) {
+    char c = t[i];
+    if (!(isalnum((unsigned char)c) || strchr(" .-_#!()+", c))) return false;
+  }
+  return true;
+}
+
 void tecStop() {
   ledcWrite(PIN_RPWM, 0); ledcWrite(PIN_LPWM, 0);
   digitalWrite(PIN_REN, LOW); digitalWrite(PIN_LEN, LOW);
@@ -219,7 +251,7 @@ void tecDrive(Mode m, uint8_t duty) {
   tecDuty = duty;
 }
 
-void enterFault(Fault f) { tecStop(); setFan(255); mode = FAULT; fault = f; modeSince = millis(); }
+void enterFault(Fault f) { tecStop(); setFan(FAN_PCT_TO_DUTY(FAN_FAULT_PCT)); mode = FAULT; fault = f; modeSince = millis(); }
 
 // ---------------- Inputs ----------------
 void readSensor() {
@@ -319,7 +351,7 @@ void debugLine() {
 void control() {
   uint32_t now = millis();
 
-  // A fault keeps the Peltier off and the fan at FAN_MAX_PCT. A lost sensor clears by itself as soon as it
+  // A fault keeps the Peltier off and the fan at FAN_FAULT_PCT. A lost sensor clears by itself as soon as it
   // reads again. The other faults clear on the next button press (or phone start), and only once the water
   // is back inside the limits; that press then starts a run as usual. A fan that is still stalled faults
   // again after FAN_STALL_GRACE_MS.
@@ -330,7 +362,7 @@ void control() {
     if (!clear) {
       if (newRun) pressInfo(fault == F_SENSOR || !sensorOk ? "blocked: no temperature sensor reading (check the TEMP plug and R2)"
                             : fault == F_FAN ? "blocked: FAN STALL" : "blocked: water temperature outside 5..55 C");
-      newRun = false; tecStop(); setFan(255); return;
+      newRun = false; tecStop(); setFan(FAN_PCT_TO_DUTY(FAN_FAULT_PCT)); return;
     }
     logEvent("Fault cleared");
     fault = F_NONE; mode = IDLE; modeSince = now; runDir = IDLE; reached = false;
@@ -414,7 +446,7 @@ void drawBattery(int x, int y) {
 // Full screen shown while a charger is plugged in.
 void drawCharging(char* b, size_t n) {
   oled.setFont(u8g2_font_6x12_tr);
-  oled.drawStr(2, 12, "ThermoX");
+  oled.drawStr(2, 12, oledTitle);
   if (!isnan(waterC)) { snprintf(b, n, "%.1fC", waterC); oled.drawStr(92, 12, b); }
   oled.drawHLine(0, 17, 128);
   oled.drawFrame(24, 26, 74, 30); oled.drawBox(98, 34, 5, 14);
@@ -450,7 +482,8 @@ void drawUI() {
   oled.clearBuffer();
   if (charging) { drawCharging(b, sizeof b); oled.sendBuffer(); return; }
   oled.setFont(u8g2_font_6x12_tr);
-  oled.drawStr(2, 12, "ThermoX");
+  oled.drawStr(2, 12, oledTitle);
+  if (battPct >= 0) { snprintf(b, sizeof b, "%d%%", battPct); oled.drawStr(97 - (int)strlen(b) * 6, 12, b); }
   drawBattery(100, 3);
   oled.drawHLine(0, 17, 128);
 
@@ -529,10 +562,12 @@ void statusJson(char* b, size_t n) {
   if (!isnan(battV)) snprintf(bv, sizeof bv, "%.2f", battV);
   snprintf(b, n,
     "{\"t\":%s,\"tg\":%.0f,\"tmin\":%.0f,\"tmax\":%.0f,\"m\":\"%s\",\"f\":\"%s\",\"r\":%d,\"w\":%u,"
-    "\"pel\":%u,\"fan\":%u,\"rpm\":%u,\"fc\":\"%s\",\"fp\":%u,\"fmin\":%u,\"bat\":%d,\"bv\":%s,\"lb\":%d,\"chg\":%d,\"cp\":%d,\"chf\":%d,\"pw\":%u,\"up\":%lu,\"ev\":%u}",
+    "\"pel\":%u,\"fan\":%u,\"rpm\":%u,\"fc\":\"%s\",\"fp\":%u,\"fmin\":%u,\"bat\":%d,\"bv\":%s,\"lb\":%d,\"chg\":%d,\"cp\":%d,\"chf\":%d,\"pw\":%u,\"up\":%lu,\"ev\":%u,"
+    "\"fmax\":%u,\"fauto\":%u,\"ob\":%u,\"or\":%u,\"os\":%d,\"ot\":\"%s\"}",
     t, targetC, TARGET_MIN, TARGET_MAX, MODE_TXT[mode], FAULT_TXT[fault], reached ? 1 : 0, (unsigned)waitLeftS,
     tecDuty * 100U / 255, fanDuty * 100U / 255, (unsigned)fanRpm, fanCtl == FAN_AUTO ? "auto" : "manual",
-    (unsigned)fanManualPct, (unsigned)fanFloorPct, battPct, bv, lowBatt ? 1 : 0, charging ? 1 : 0, chgPct, chargeFull ? 1 : 0, (unsigned)tecPowerPct, (unsigned long)millis(), (unsigned)evTotal);
+    (unsigned)fanManualPct, (unsigned)fanFloorPct, battPct, bv, lowBatt ? 1 : 0, charging ? 1 : 0, chgPct, chargeFull ? 1 : 0, (unsigned)tecPowerPct, (unsigned long)millis(), (unsigned)evTotal,
+    (unsigned)FAN_MAX_PCT, (unsigned)FAN_AUTO_COOL_PCT, (unsigned)oledBright, (unsigned)oledRot, oledOn ? 1 : 0, oledTitle);
 }
 
 // Event log JSON, oldest first: {"up":<millis now>,"e":[[<millis>,"text"],...]} (under 512 bytes).
@@ -561,7 +596,7 @@ class PhoneServerCb : public BLEServerCallbacks {
 };
 class StatusCb : public BLECharacteristicCallbacks {
   void onRead(BLECharacteristic* c) override {
-    static char b[320]; statusJson(b, sizeof b); c->setValue((uint8_t*)b, strlen(b));
+    static char b[448]; statusJson(b, sizeof b); c->setValue((uint8_t*)b, strlen(b));
   }
 };
 class LogCb : public BLECharacteristicCallbacks {
@@ -606,6 +641,10 @@ void bleBegin() {
 //   FA         fan AUTO (the normal behaviour)
 //   FM<0-100>  fan MANUAL at this %, never below FAN_MIN_PCT_* while the Peltier runs, never above FAN_MAX_PCT
 //   P<30-100>  Peltier power limit, % (saved)
+//   OB<0-100>  OLED brightness, % (saved)
+//   OR<0-3>    OLED orientation: 0 portrait, 1 landscape, 2 portrait upside down, 3 landscape the other way (saved)
+//   OS1 / OS0  OLED screen on / off (comes back on after a power-up)
+//   OT<text>   OLED title, 1-10 characters: letters, digits, space . - _ # ! ( ) + (saved)
 // Fault cutoffs, the 60 s reversal rest and the fault latch work exactly as with the buttons.
 void handlePhone() {
   if (!phoneCmds) return;
@@ -628,6 +667,17 @@ void handlePhone() {
     } else if (c0 == 'F' && c1 == 'M' && (v = strtol(s + 2, &end, 10), end != s + 2 && *end == '\0') &&
                v >= 0 && v <= 100) {
       fanCtl = FAN_MANUAL; fanManualPct = v; logEvent("Phone: fan %ld%%", v);
+    } else if (c0 == 'O' && c1 == 'B' && (v = strtol(s + 2, &end, 10), end != s + 2 && *end == '\0') &&
+               v >= 0 && v <= 100) {
+      oledBright = v; prefs.putUChar("obr", oledBright); oledApply(); logEvent("Phone: OLED %ld%%", v);
+    } else if (c0 == 'O' && c1 == 'R' && (v = strtol(s + 2, &end, 10), end != s + 2 && *end == '\0') &&
+               v >= 0 && v <= 3) {
+      oledRot = v; prefs.putUChar("orot", oledRot); oledApply(); logEvent("Phone: OLED turned (%ld)", v);
+    } else if (c0 == 'O' && c1 == 'S' && (s[2] == '0' || s[2] == '1') && s[3] == '\0') {
+      oledOn = s[2] == '1'; oledApply(); logEvent(oledOn ? "Phone: OLED on" : "Phone: OLED off");
+    } else if (c0 == 'O' && c1 == 'T' && titleOk(s + 2)) {
+      strncpy(oledTitle, s + 2, OLED_TITLE_MAX); oledTitle[OLED_TITLE_MAX] = '\0';
+      prefs.putString("otitle", oledTitle); logEvent("Phone: OLED title");
     } else if (c0 == 'P' && (v = strtol(s + 1, &end, 10), end != s + 1 && *end == '\0') &&
                v >= POWER_MIN_PCT && v <= 100) {
       tecPowerPct = v; prefs.putUChar("power", tecPowerPct); logEvent("Phone: power %ld%%", v);
@@ -706,6 +756,11 @@ void setup() {
   prefs.begin("thermox", false);                 // saved target and power limit (no run starts)
   targetC = constrain(prefs.getFloat("target", TARGET_DEFAULT), TARGET_MIN, TARGET_MAX);
   tecPowerPct = constrain(prefs.getUChar("power", 100), POWER_MIN_PCT, (uint8_t)100);
+  oledRot = prefs.getUChar("orot", OLED_ROT_DEFAULT) & 3;
+  oledBright = min(prefs.getUChar("obr", OLED_BRIGHT_DEFAULT), (uint8_t)100);
+  String t = prefs.getString("otitle", OLED_TITLE_DEFAULT);
+  if (!titleOk(t.c_str())) t = OLED_TITLE_DEFAULT;
+  strncpy(oledTitle, t.c_str(), OLED_TITLE_MAX); oledTitle[OLED_TITLE_MAX] = '\0';
   if (ENABLE_BT_LOGGING) SerialBT.begin(BT_NAME);
   if (ENABLE_BLE_CONTROL) bleBegin();            // after the Peltier and fan outputs are safely off
 
@@ -718,6 +773,7 @@ void setup() {
   Wire.begin(PIN_SDA, PIN_SCL);
   oled.setI2CAddress(0x3C << 1);
   oled.begin();
+  oledApply();                                   // saved orientation and brightness
 
   ds.begin(); ds.setWaitForConversion(false); ds.setResolution(12);
   Serial.printf("\nThermoX ready. DS18B20 sensors found: %d. Fan limit %u %%\n", ds.getDeviceCount(), (unsigned)FAN_MAX_PCT);
