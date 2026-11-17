@@ -242,9 +242,9 @@ footer { max-width: 980px; margin: 16px auto 0; color: var(--dim); font-size: 12
         <div class="note" style="margin:2px 0 0" id="fanNowS">fan speed now</div>
       </div>
     </div>
-    <input id="fanSlider" type="range" min="0" max="100" step="5" value="50" aria-label="Manual fan speed" disabled>
-    <div class="range-ticks"><span>0 %</span><span id="fanSetL">Manual: 50 %</span><span>100 %</span></div>
-    <p class="note" id="fanNote">AUTO: 100 % when cooling, 50 % when heating, off when idle.</p>
+    <input id="fanSlider" type="range" min="0" max="60" step="5" value="50" aria-label="Manual fan speed" disabled>
+    <div class="range-ticks"><span>0 %</span><span id="fanSetL">Manual: 50 %</span><span>60 % (max)</span></div>
+    <p class="note" id="fanNote">AUTO: 60 % when cooling and heating, off when idle. The fan never goes above 60 %.</p>
   </section>
 
   <section class="card wide">
@@ -369,16 +369,16 @@ class DemoLink {
       if (want !== 'IDLE' && d.lastDriven !== 'IDLE' && want !== d.lastDriven && now - d.lastActive < 60000) {
         d.wait = Math.ceil((60000 - (now - d.lastActive)) / 1000); want = 'IDLE'; }
       d.mode = want;
-      d.floor = want === 'COOLING' ? 70 : want === 'HEATING' ? 40 : 0;
-      const auto = want === 'COOLING' ? 100 : want === 'HEATING' ? 50 : 0;
-      d.fanDuty = d.fanCtl === 'auto' ? auto : Math.max(d.fanPct, d.floor);
+      d.floor = want === 'COOLING' ? 50 : want === 'HEATING' ? 30 : 0;   // same as ThermoX.ino
+      const auto = want === 'IDLE' ? 0 : 60;                               // FAN_AUTO_COOL_PCT / FAN_AUTO_HEAT_PCT
+      d.fanDuty = d.fanCtl === 'auto' ? auto : Math.min(Math.max(d.fanPct, d.floor), 60);   // FAN_MAX_PCT
       d.pel = want === 'IDLE' ? 0 : d.power;
       if (want !== 'IDLE') { d.lastActive = now; d.lastDriven = want; }
     }
     const pf = d.power / 100;
     const rate = d.mode === 'HEATING' ? 0.09 * pf : d.mode === 'COOLING' ? -0.06 * pf * (0.6 + d.fanDuty / 250) : (28 - d.water) * 0.004;
     d.water += rate * dt * 4 + (Math.random() - 0.5) * 0.01;
-    d.rpm = d.fanDuty ? Math.round(d.fanDuty * 62 + Math.random() * 60) : 0;
+    d.rpm = 0;                                   // no FG wire: ThermoX.ino has ENABLE_FAN_TACH = false
     if (d.mode !== before && (d.mode === 'HEATING' || d.mode === 'COOLING')) this.ev((d.mode === 'HEATING' ? 'Heating' : 'Cooling') + ' to ' + d.target + ' C');
     if (d.wait > 0 && !wasWaiting) this.ev('Wait ' + d.wait + 's before reversing');
     if (d.reached && !wasReached) this.ev('Reached ' + d.water.toFixed(1) + ' C');
@@ -454,7 +454,7 @@ function render(s) {
 
   $('tTarget').textContent = s.tg + ' °C'; $('nowTarget').textContent = 'device: ' + s.tg + ' °C';
   $('tPel').textContent = s.pel + '%'; $('tPelS').textContent = s.pel ? (s.m === 'HEATING' ? 'heating' : 'cooling') : 'off'; $('bPel').style.width = s.pel + '%';
-  $('tFan').textContent = s.fan + '%'; $('tFanS').textContent = (s.fc === 'manual' ? 'MANUAL' : 'AUTO') + ' · ' + s.rpm + ' rpm'; $('bFan').style.width = s.fan + '%';
+  $('tFan').textContent = s.fan + '%'; $('tFanS').textContent = (s.fc === 'manual' ? 'MANUAL' : 'AUTO') + (s.rpm ? ' · ' + s.rpm + ' rpm' : ''); $('bFan').style.width = s.fan + '%';
   if (s.bat >= 0) { $('tBat').textContent = s.bat + '%'; $('tBatS').textContent = s.bv === null ? '' : s.bv.toFixed(2) + ' V'; }
   else { $('tBat').textContent = '—'; $('tBatS').textContent = 'not measured'; }
   if (s.chg) { $('tBat').textContent = '⚡' + (s.cp >= 0 ? ' ' + s.cp + '%' : ''); $('tBatS').textContent = s.chf ? 'full: unplug' : 'charging'; }
@@ -472,13 +472,13 @@ function render(s) {
     if (!pwBusy) { $('pwSlider').value = s.pw; paintPw(); }
     $('pwSlider').disabled = !link || !link.connected;
   }
-  $('fanNow').textContent = s.fan; $('fanNowS').textContent = s.rpm + ' rpm' + (s.m === 'FAULT' ? ' (fault: full speed)' : '');
+  $('fanNow').textContent = s.fan; $('fanNowS').textContent = (s.rpm ? s.rpm + ' rpm' : 'fan speed setting') + (s.m === 'FAULT' ? ' (fault: 60 %)' : '');
   $('fanRpmH').textContent = s.rpm ? s.rpm + ' rpm' : '';
   const icon = $('fanIcon'); icon.classList.toggle('go', s.fan > 0); icon.style.setProperty('--spd', (1.6 - s.fan / 80).toFixed(2) + 's');
   let note;
-  if (s.fc === 'auto') note = 'AUTO: 100 % when cooling, 50 % when heating, off when idle.';
+  if (s.fc === 'auto') note = 'AUTO: 60 % when cooling and heating, off when idle. The fan never goes above 60 %.';
   else if ((s.m === 'HEATING' || s.m === 'COOLING') && s.fp < s.fmin) note = 'Running at the safety minimum of ' + s.fmin + ' % while the Peltier is ' + s.m.toLowerCase() + '.';
-  else note = 'MANUAL: the fan runs at this speed, also when idle. While the Peltier runs it never goes below 70 % (cooling) or 40 % (heating).';
+  else note = 'MANUAL: the fan runs at this speed, also when idle. While the Peltier runs it stays between 50 % (cooling) or 30 % (heating) and the 60 % limit.';
   $('fanNote').textContent = note;
 
   samples.push({ t: Date.now(), temp, target: s.tg });
