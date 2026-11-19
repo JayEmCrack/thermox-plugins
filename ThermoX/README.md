@@ -94,19 +94,26 @@ that touches the firmware. A red check means the sketch would not build in the A
 Classic Bluetooth logging below keeps working at the same time.
 
 What it does:
-- Live status: water temperature, state (READY / HEATING / COOLING / REACHED / WAIT / FAULT), target,
-  Peltier %, fan % and RPM, battery (once battery sensing is enabled), a temperature graph and an activity log.
-- **Temperature control**: choose the target with − / + and press **Start**. This works exactly like a press of
-  the device buttons: one run at full power to the target, then the Peltier and fan stop. **Stop** ends the run.
+- Live status: water temperature, state (OFF / COOLING / HEATING / HOLDING / AT target / WAIT / FAULT), program,
+  Peltier %, fan %, battery % and volts (the resting value: read with the Peltier off), a temperature graph and an
+  activity log.
+- **Program**: **COLD**, **HOT** and **OFF**, the same as the two device buttons (Button 1 = COLD, Button 2 = HOT;
+  pressing the same button again = OFF). COLD/HOT pulls the water to its target at full power (the power slider),
+  then holds it like a thermostat: when the water drifts 0.5 C away the Peltier runs again at 50 % until it is back.
   The 60 s hot/cold reversal rest and all fault cutoffs still apply.
-- **Fan control**: **AUTO** is the normal behaviour (100 % cooling, 50 % heating, off when idle). **MANUAL** runs the
-  fan at the slider speed, also when idle, but while the Peltier runs it never goes below
-  `FAN_MIN_PCT_COOL` (70 %) when cooling or `FAN_MIN_PCT_HEAT` (40 %) when heating. The fan goes back to AUTO
-  at every power-up. If a FAN STALL fault appears in MANUAL, raise those minimums.
-- **Peltier power**: slider from 30 % to 100 % (`P<n>`). Lower power heats/cools more slowly but the battery lasts
-  longer. Saved on the device.
-- A fault (sensor, over/under temperature, fan stall) stops the Peltier. A lost sensor clears by itself when it
-  reads again; the others clear on the next **Start** or button press once the water is back inside 5..55 C.
+- **COLD target** (10-30 C, default 22) and **HOT target** (35-52 C, default 50): sliders, saved on the device.
+- **Fan control**: the fan runs only while cooling: **AUTO** 60 % (default) or **MANUAL** 50-100 %. It is off while
+  heating (`FAN_HEAT_PCT = 0`) and whenever the Peltier is off.
+- **Peltier power**: slider from 30 % to 100 % (`P<n>`) for the first pull to the target; holding uses 50 % (or
+  this, if lower). Saved on the device.
+- **OLED display**: on/off, brightness, orientation and title, with a preview. While the Peltier runs the OLED shows
+  RUNNING instead of the battery % and bar.
+- **Data log (every minute)**: a graph (water C and battery %) and a table (time, water, program, Peltier, fan,
+  battery %, volts, battery used), recorded on the phone while it is connected. It stays after a refresh;
+  **Reset** clears it and **Download CSV** saves it for Excel.
+- **ThermoX Thesis Defended**: a button that plays a celebration animation (tap to close).
+- A fault (sensor, over/under temperature, fan stall) stops the Peltier and sets OFF. A lost sensor clears by itself
+  when it reads again; the others clear on the next COLD/HOT press once the water is back inside 5..55 C.
 
 How to open it:
 1. Upload `phone.html` together with the rest of `dashboard/` to the HTTPS host (step 3 below), then open
@@ -123,11 +130,14 @@ characteristic. Commands can also be sent by hand with an app such as nRF Connec
 
 | Command | Meaning |
 |---|---|
-| `T30` | Set the target to 30 °C (20–50) and start a run (same as a button press) |
-| `S` | Start a run toward the current target |
-| `X` | Stop the run (Peltier off) |
-| `FA` | Fan AUTO |
-| `FM60` | Fan MANUAL 60 % (0–100) |
+| `C` | COLD program (pull to the COLD target, then hold it) |
+| `H` | HOT program (pull to the HOT target, then hold it) |
+| `X` | OFF (Peltier and fan off) |
+| `TC22` | COLD target 22 °C (10–30, saved) |
+| `TH50` | HOT target 50 °C (35–52, saved) |
+| `FA` | Fan AUTO (60 % while cooling) |
+| `FM80` | Fan MANUAL 80 % while cooling (50–100) |
+| `OB60` / `OR1` / `OS0` / `OTname` | OLED brightness % / orientation 0–3 / screen off (`OS1` on) / title (saved) |
 | `P60` | Peltier power limit 60 % (30–100, saved) |
 
 Notes: one phone at a time; range is about 10 m. There is no PIN, so anyone in range with the page could connect;

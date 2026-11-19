@@ -3,20 +3,23 @@
   Target board : ESP32 (Arduino-ESP32 core 3.x)  -- NOT an Arduino Uno (see README.md)
   Libraries    : OneWire, DallasTemperature, U8g2
 
-  Behaviour (per Chapters I-III):
-   - User sets target 20..50 C in 1 C steps with two buttons (B1 = down, B2 = up)
+  Behaviour:
+   - Two buttons, two programs: COLD (blue button) holds the water at 22 C, HOT holds it at 50 C.
+     Press the same button again for OFF. Pressing the other button switches program (after the 60 s rest).
    - DS18B20 measures water temp; BTS7960 drives one TEC1-12706 in either direction
-   - A button press starts ONE run toward the target: HEAT or COOL at full power until it is reached
-   - At the target the Peltier and fan switch off (IDLE) and stay off, even if the water then
-     drifts, until the next button press. Nothing starts by itself at power-up either.
+   - Thermostat: the Peltier first pulls the water to the target at full power (the phone's power limit).
+     Then it holds it: when the water drifts HOLD_BAND_C (0.5 C) away it runs again at HOLD_POWER_PCT (50 %)
+     until the water is back at the target. This goes on until OFF. Nothing starts by itself at power-up.
    - Hot <-> cold reversal is blocked for REVERSE_COOLDOWN_MS (60 s) with the Peltier off
-   - Fan: AUTO 60 % in COOL and HEAT (FAN_AUTO_*_PCT), off when idle (only the OLED stays on).
-     MANUAL from the phone: 0-100 %. A fault runs it at FAN_FAULT_PCT.
-   - SH1107 128x128 OLED, mounted in LANDSCAPE (on its side). It shows water temp, target, mode, fan, battery %.
+   - Fan: only while the Peltier COOLS, at 60 % (AUTO) or the phone's MANUAL % (50-100 %). Off while it heats
+     (FAN_HEAT_PCT = 0) and while the Peltier is off. A fault runs it at FAN_FAULT_PCT.
+   - SH1107 128x128 OLED, mounted in LANDSCAPE (on its side). It shows water temp, program, state, fan and the
+     battery %. While the Peltier runs the battery % and bar are replaced by RUNNING (the pack voltage drops
+     under load); the battery % is the last one read with the Peltier off.
      The phone can switch it on/off and set its brightness, orientation and title (saved on the device).
-   - Phone control over Bluetooth Low Energy (page: dashboard/phone.html): live status, set the target,
-     start/stop a run, fan AUTO or MANUAL %, Peltier power limit (see README.md)
-   - The last target and the power limit are saved and come back after power-up (no run starts by itself)
+   - Phone control over Bluetooth Low Energy (page: dashboard/phone.html): live status, COLD / HOT / STOP,
+     the COLD and HOT targets, fan AUTO or MANUAL %, Peltier power limit (see README.md)
+   - The two targets, the power limit and the OLED settings are saved; ThermoX starts OFF after power-up
    - Low-battery cutoff: OFF (ENABLE_LOW_BATT_CUTOFF = false). The battery % is still shown; the BMS still cuts
      the power when the cells are empty. With it on (needs ENABLE_BATTERY_SENSE) it stops the Peltier and blocks new runs until the
      battery recovers
@@ -26,6 +29,7 @@
      it reads again; the others clear on the next button press once the water is back inside the limits
    - USB Serial Monitor (115200): a "# ..." status line every 2 s and a "PRESS: ..." line for every button
      press that says what the press did, or what blocked it
+   - Button 1 / Button 2 roles: COLD_IS_BUTTON1 (true = Button 1 on GPIO18 is COLD)
 */
 #include <Arduino.h>
 #include <Wire.h>
@@ -79,15 +83,21 @@ constexpr float   BATT_PRESENT_V = 6.0f;      // pack: below this no battery is 
                                               // no battery %, no low-battery cutoff
 
 // ---------------- Tunables ----------------
-constexpr float TARGET_MIN = 20.0f, TARGET_MAX = 50.0f, TARGET_DEFAULT = 25.0f;
-constexpr float START_BAND_C = 0.5f;         // C, a press within this band of the target counts as already reached
+// Two programs, one per button. The phone can change both targets (saved).
+constexpr bool  COLD_IS_BUTTON1 = true;      // true: Button 1 (GPIO18) = COLD (blue), Button 2 (GPIO33) = HOT
+constexpr float COLD_TARGET_DEFAULT = 22.0f, HOT_TARGET_DEFAULT = 50.0f;
+constexpr float COLD_TARGET_MIN = 10.0f, COLD_TARGET_MAX = 30.0f;   // what the phone may set for COLD
+constexpr float HOT_TARGET_MIN = 35.0f,  HOT_TARGET_MAX = 52.0f;    // what the phone may set for HOT (cutoff 55 C)
+constexpr float HOLD_BAND_C = 0.5f;          // thermostat: the Peltier runs again when the water is this far off
+constexpr uint8_t HOLD_POWER_PCT = 50;       // Peltier power while holding the target, %
+constexpr uint32_t BATT_REST_MS = 3000;      // battery % uses only samples taken 3 s or more after the Peltier stops
 constexpr float OVERTEMP_CUTOFF = 55.0f;     // C, hard stop
 constexpr float UNDERTEMP_CUTOFF = 5.0f;     // C, hard stop (freezing)
 constexpr uint8_t TEC_MAX_DUTY = 255;        // full power; each run uses TEC_MAX_DUTY x tecPowerPct
 constexpr uint8_t POWER_MIN_PCT = 30;        // lowest Peltier power the phone can set, %
 constexpr bool    HEAT_ON_RPWM = true;       // swap if your wiring heats on LPWM instead
 constexpr uint32_t REVERSE_COOLDOWN_MS = 60000; // Peltier must rest this long (off) before the direction reverses
-constexpr uint32_t FAN_RUNON_MS = 0;         // fan run-on after TEC stops; 0 = fan off immediately
+constexpr uint32_t FAN_RUNON_MS = 0;         // fan run-on after cooling stops; 0 = fan off immediately
 constexpr uint32_t SENSOR_FAIL_MS = 5000;
 constexpr uint32_t FAN_STALL_GRACE_MS = 5000;
 // Fan speed sensor (FG, yellow wire). false = the yellow wire is NOT connected (tape it off): the fan is still
@@ -97,10 +107,10 @@ constexpr bool     ENABLE_FAN_TACH = false;
 constexpr uint16_t FAN_MIN_RPM = 500;        // below this while commanded => stall (only with ENABLE_FAN_TACH)
 constexpr uint8_t  FAN_PULSES_PER_REV = 2;   // SUNON 4-wire FG standard
 
-// Fan speeds. AUTO (the default) runs the fan at 60 %; MANUAL from the phone can go up to FAN_MAX_PCT.
+// Fan speeds. COOLING: AUTO (the default) 60 %, MANUAL from the phone 50-100 %. HEATING: off.
 constexpr uint8_t  FAN_MAX_PCT       = 100;  // highest speed the phone (MANUAL) can set, %
 constexpr uint8_t  FAN_AUTO_COOL_PCT = 60;   // AUTO speed while COOLING, %
-constexpr uint8_t  FAN_AUTO_HEAT_PCT = 60;   // AUTO speed while HEATING, % (same as cooling)
+constexpr uint8_t  FAN_HEAT_PCT      = 0;    // speed while HEATING, % (0 = off; try 60 if heating is slow)
 constexpr uint8_t  FAN_FAULT_PCT     = 60;   // speed during a fault (Peltier off), %
 constexpr uint8_t  FAN_RUNON_PCT     = 35;   // speed during the run-on after a run (FAN_RUNON_MS), %
 #define FAN_PCT_TO_DUTY(pct) ((uint8_t)(((pct) * 255U + 50) / 100))   // fan % -> PWM duty 0..255
@@ -124,14 +134,12 @@ constexpr uint32_t LOG_PERIOD_MS = 2000;   // 1-5 s is reasonable
 
 // ---------------- Phone control (Bluetooth Low Energy) ----------------
 // The phone page dashboard/phone.html connects with Web Bluetooth (Chrome on Android). It shows the
-// status and can set the target, start or stop a run and set the fan. The Classic Bluetooth logging
+// status and can start COLD or HOT, stop, set both targets, the fan, the power limit and the OLED. The Classic Bluetooth logging
 // above keeps working at the same time.
 constexpr bool     ENABLE_BLE_CONTROL = true;
 constexpr uint8_t  FAN_MIN_PCT_COOL = 50;    // MANUAL fan never goes below this % while COOLING (hot side needs air)
-constexpr uint8_t  FAN_MIN_PCT_HEAT = 30;    // ... or below this % while HEATING
-static_assert(FAN_MAX_PCT <= 100 && FAN_AUTO_COOL_PCT <= FAN_MAX_PCT && FAN_AUTO_HEAT_PCT <= FAN_MAX_PCT &&
-              FAN_FAULT_PCT <= FAN_MAX_PCT &&
-              FAN_RUNON_PCT <= FAN_MAX_PCT && FAN_MIN_PCT_COOL <= FAN_MAX_PCT && FAN_MIN_PCT_HEAT <= FAN_MAX_PCT,
+static_assert(FAN_MAX_PCT <= 100 && FAN_AUTO_COOL_PCT <= FAN_MAX_PCT && FAN_HEAT_PCT <= FAN_MAX_PCT &&
+              FAN_FAULT_PCT <= FAN_MAX_PCT && FAN_RUNON_PCT <= FAN_MAX_PCT && FAN_MIN_PCT_COOL <= FAN_MAX_PCT,
               "fan speeds must not be above FAN_MAX_PCT");
 constexpr uint32_t BLE_PING_MS = 1000;       // how often the phone is told to refresh
 #define BLE_SERVICE_UUID "7a3c0000-63b5-4559-b515-2c37cc077186"
@@ -160,22 +168,30 @@ constexpr char    OLED_TITLE_DEFAULT[] = "ThermoX";
 constexpr uint8_t OLED_TITLE_MAX = 10;         // characters (fits next to the battery % at the top)
 U8G2_SH1107_PIMORONI_128X128_F_HW_I2C oled(U8G2_R1, U8X8_PIN_NONE);
 
-float waterC = NAN, targetC = TARGET_DEFAULT;
+float waterC = NAN;
+float coldTargetC = COLD_TARGET_DEFAULT, hotTargetC = HOT_TARGET_DEFAULT;   // saved
+enum Prog : uint8_t { P_OFF, P_COLD, P_HOT };
+const char* PROG_TXT[] = {"off", "cold", "hot"};
+Prog prog = P_OFF;                           // program chosen with the buttons or the phone
+int8_t progReq = -1;                         // a button or the phone asked for this program (-1 = nothing)
+bool approach = false;                       // first pull to the target at full power; then the thermostat holds it
+bool holdOn = false;                         // thermostat: the Peltier is running to bring the water back
 Mode mode = IDLE; Fault fault = F_NONE;
 uint8_t tecDuty = 0, fanDuty = 0;
 uint32_t lastGoodRead = 0, lastTecActive = 0, modeSince = 0, fanOnSince = 0;
 Mode lastDriven = IDLE;                      // last direction the Peltier was driven in
-Mode runDir = IDLE;                          // direction of the run in progress (IDLE = no run)
-bool newRun = false;                         // a button was pressed: pick the direction on the next pass
-bool reached = false;                        // last run finished at the target (display only)
+bool reached = false;                        // the target has been reached once: the thermostat is holding it
 uint16_t waitLeftS = 0;                      // seconds left of the reversal cooldown (0 = none)
 volatile uint32_t tachPulses = 0;
 uint16_t fanRpm = 0;
 int battPct = -1;
 float battV = NAN;                           // stays NaN unless ENABLE_BATTERY_SENSE
+int battRestPct = -1;                        // battery % read with the Peltier off (shown on the OLED and the phone)
+float battRestV = NAN;
+uint32_t tecOffSince = 0;                    // when the Peltier last stopped
 enum FanCtl : uint8_t { FAN_AUTO, FAN_MANUAL };
 FanCtl fanCtl = FAN_AUTO;                    // set from the phone; back to AUTO after every power-up
-uint8_t fanManualPct = 50;                   // MANUAL fan speed from the phone, %
+uint8_t fanManualPct = 60;                   // MANUAL fan speed from the phone, % (used while cooling)
 uint8_t fanFloorPct = 0;                     // safety minimum for the MANUAL fan right now, %
 uint8_t tecPowerPct = 100;                   // Peltier power limit from the phone, % (saved)
 bool lowBatt = false;                        // low-battery cutoff active
@@ -208,11 +224,11 @@ void setFan(uint8_t d) {
   fanDuty = d; ledcWrite(PIN_FAN_PWM, FAN_PWM_INVERTED ? 255 - d : d);
 }
 
-// Fan duty for mode m. AUTO uses autoDuty (the normal behaviour). MANUAL uses the phone's %, but
-// while the Peltier runs it never goes below FAN_MIN_PCT_COOL / FAN_MIN_PCT_HEAT.
+// Fan duty for mode m. COOL: AUTO uses autoDuty, MANUAL the phone's % (never below FAN_MIN_PCT_COOL).
+// HEAT and IDLE: autoDuty (FAN_HEAT_PCT = off while heating; off or the run-on when idle).
 uint8_t fanDutyFor(Mode m, uint8_t autoDuty) {
-  fanFloorPct = (m == COOL) ? FAN_MIN_PCT_COOL : (m == HEAT) ? FAN_MIN_PCT_HEAT : 0;
-  if (fanCtl == FAN_AUTO) return autoDuty;
+  fanFloorPct = (m == COOL) ? FAN_MIN_PCT_COOL : 0;
+  if (m != COOL || fanCtl == FAN_AUTO) return autoDuty;
   uint8_t pct = min(max(fanManualPct, fanFloorPct), FAN_MAX_PCT);
   return FAN_PCT_TO_DUTY(pct);
 }
@@ -242,6 +258,7 @@ bool titleOk(const char* t) {
 }
 
 void tecStop() {
+  if (tecDuty > 0) tecOffSince = millis();
   ledcWrite(PIN_RPWM, 0); ledcWrite(PIN_LPWM, 0);
   digitalWrite(PIN_REN, LOW); digitalWrite(PIN_LEN, LOW);
   tecDuty = 0;
@@ -283,9 +300,15 @@ void readBattery() {
   if (now - t0 < 2000) return; t0 = now;
   float v = analogReadMilliVolts(PIN_BATT_ADC) / 1000.0f * BATT_DIVIDER;
   battV = isnan(battV) ? v : battV * 0.7f + v * 0.3f;   // smoothed pack voltage
-  if (battV < BATT_PRESENT_V) { battPct = -1; return; }
-  float cell = battV / BATT_CELLS;
-  battPct = constrain((int)((cell - BATT_EMPTY_V) * 100 / (BATT_FULL_V - BATT_EMPTY_V)), 0, 100);
+  if (battV < BATT_PRESENT_V) battPct = -1;
+  else battPct = constrain((int)((battV / BATT_CELLS - BATT_EMPTY_V) * 100 / (BATT_FULL_V - BATT_EMPTY_V)), 0, 100);
+  // The Peltier pulls about 6 A, so the pack voltage drops while it runs. The % shown on the OLED and the
+  // phone comes from its own average of samples taken with the Peltier off for BATT_REST_MS (resting voltage).
+  if ((tecDuty == 0 && now - tecOffSince > BATT_REST_MS) || isnan(battRestV)) {
+    battRestV = isnan(battRestV) ? v : battRestV * 0.6f + v * 0.4f;
+    battRestPct = battRestV < BATT_PRESENT_V ? -1
+      : constrain((int)((battRestV / BATT_CELLS - BATT_EMPTY_V) * 100 / (BATT_FULL_V - BATT_EMPTY_V)), 0, 100);
+  }
 }
 
 // Charger on J10: GPIO19 reads HIGH through R5/R6. Debounced so plugging the jack in does not flicker.
@@ -311,20 +334,30 @@ void readCharger() {
   if (!chargeFull && chgPct > 99) chgPct = 99;
 }
 
-Btn bDown{PIN_BTN_DOWN, HIGH, 0, 0}, bUp{PIN_BTN_UP, HIGH, 0, 0};
+Btn bCold{COLD_IS_BUTTON1 ? PIN_BTN_DOWN : PIN_BTN_UP, HIGH, 0, 0};
+Btn bHot{COLD_IS_BUTTON1 ? PIN_BTN_UP : PIN_BTN_DOWN, HIGH, 0, 0};
 
-bool btnStep(Btn& b) {           // true on press and on 150 ms auto-repeat after 600 ms hold
+bool btnStep(Btn& b) {           // true once per press (30 ms debounce, no auto-repeat)
   bool s = digitalRead(b.pin); uint32_t now = millis(); bool fire = false;
   if (s != b.last && now - b.since > 30) {
     b.since = now; b.last = s;
-    if (s == LOW) { fire = true; b.rep = now + 600; }
-  } else if (s == LOW && b.last == LOW && now > b.rep) { fire = true; b.rep = now + 150; }
+    if (s == LOW) fire = true;
+  }
   return fire;
 }
 
+// COLD button: COLD, or OFF if COLD is already on. HOT button: the same for HOT.
 void handleButtons() {
-  if (btnStep(bDown)) { targetC = max(TARGET_MIN, targetC - 1.0f); newRun = true; }
-  if (btnStep(bUp))   { targetC = min(TARGET_MAX, targetC + 1.0f); newRun = true; }
+  if (btnStep(bCold)) progReq = (prog == P_COLD) ? P_OFF : P_COLD;
+  if (btnStep(bHot))  progReq = (prog == P_HOT)  ? P_OFF : P_HOT;
+}
+
+// Target of the program that is on (COLD target when OFF, for display only).
+float progTarget() { return prog == P_HOT ? hotTargetC : coldTargetC; }
+
+// Starts a program (or OFF). Every start first pulls to the target at full power.
+void setProg(Prog p) {
+  prog = p; approach = (p != P_OFF); holdOn = false; reached = false;
 }
 
 // ---------------- Serial Monitor help (USB only, 115200 baud) ----------------
@@ -332,7 +365,7 @@ void handleButtons() {
 void pressInfo(const char* what) {
   char t[10] = "--";
   if (!isnan(waterC)) snprintf(t, sizeof t, "%.1f", waterC);
-  Serial.printf("PRESS: target %.0f C, water %s C -> %s\n", targetC, t, what);
+  Serial.printf("PRESS: water %s C -> %s\n", t, what);
 }
 
 // Status line every 2 s. It starts with '#', so receiver.py ignores it.
@@ -344,9 +377,9 @@ void debugLine() {
   if (!isnan(waterC)) snprintf(t, sizeof t, "%.1f", waterC);
   if (!isnan(battV)) snprintf(bv, sizeof bv, "%.1f", battV);
   const char* st = mode == FAULT ? FAULT_TXT[fault] : charging ? "CHARGING (locked)" : lowBatt ? "LOW BATT (locked)"
-                   : waitLeftS ? "WAIT" : mode == IDLE ? (reached ? "REACHED" : "READY") : MODE_TXT[mode];
-  Serial.printf("# %s | water %s C | target %.0f C | Peltier %u%% | fan %u%% %u rpm | batt %s V | charger pin %s | BTN1 %s BTN2 %s\n",
-                st, t, targetC, tecDuty * 100U / 255, fanDuty * 100U / 255, (unsigned)fanRpm, bv,
+                   : waitLeftS ? "WAIT" : prog == P_OFF ? "OFF" : mode != IDLE ? MODE_TXT[mode] : reached ? "HOLD" : "READY";
+  Serial.printf("# %s | %s %.0f C | water %s C | Peltier %u%% | fan %u%% %u rpm | batt %s V | charger pin %s | BTN1 %s BTN2 %s\n",
+                st, PROG_TXT[prog], progTarget(), t, tecDuty * 100U / 255, fanDuty * 100U / 255, (unsigned)fanRpm, bv,
                 digitalRead(PIN_CHG_DET) == HIGH ? "HIGH" : "low",
                 digitalRead(PIN_BTN_DOWN) == LOW ? "DOWN" : "up", digitalRead(PIN_BTN_UP) == LOW ? "DOWN" : "up");
 }
@@ -354,29 +387,29 @@ void debugLine() {
 // ---------------- Control ----------------
 void control() {
   uint32_t now = millis();
+  int req = progReq; progReq = -1;             // a button or phone request waiting since the last pass
 
   // A fault keeps the Peltier off and the fan at FAN_FAULT_PCT. A lost sensor clears by itself as soon as it
-  // reads again. The other faults clear on the next button press (or phone start), and only once the water
-  // is back inside the limits; that press then starts a run as usual. A fan that is still stalled faults
-  // again after FAN_STALL_GRACE_MS.
+  // reads again (ThermoX then stays OFF). The other faults clear on the next button press (or phone COLD/HOT),
+  // once the water is back inside the limits; that press then starts its program as usual.
   if (mode == FAULT) {
     bool sensorOk = !isnan(waterC) && now - lastGoodRead <= SENSOR_FAIL_MS;
     bool tempOk = sensorOk && waterC < OVERTEMP_CUTOFF && waterC > UNDERTEMP_CUTOFF;
-    bool clear = tempOk && (fault == F_SENSOR || newRun);
+    bool clear = tempOk && (fault == F_SENSOR || req >= 0);
     if (!clear) {
-      if (newRun) pressInfo(fault == F_SENSOR || !sensorOk ? "blocked: no temperature sensor reading (check the TEMP plug and R2)"
-                            : fault == F_FAN ? "blocked: FAN STALL" : "blocked: water temperature outside 5..55 C");
-      newRun = false; tecStop(); setFan(FAN_PCT_TO_DUTY(FAN_FAULT_PCT)); return;
+      if (req >= 0) pressInfo(fault == F_SENSOR || !sensorOk ? "blocked: no temperature sensor reading (check the TEMP plug and R2)"
+                              : fault == F_FAN ? "blocked: FAN STALL" : "blocked: water temperature outside 5..55 C");
+      tecStop(); setFan(FAN_PCT_TO_DUTY(FAN_FAULT_PCT)); return;
     }
     logEvent("Fault cleared");
-    fault = F_NONE; mode = IDLE; modeSince = now; runDir = IDLE; reached = false;
+    fault = F_NONE; mode = IDLE; modeSince = now; reached = false;
     fanOnSince = 0;                              // a new 5 s spin-up time before the stall check
   }
-  if (now - lastGoodRead > SENSOR_FAIL_MS) { enterFault(F_SENSOR); return; }
-  if (waterC >= OVERTEMP_CUTOFF)  { enterFault(F_OVERTEMP);  return; }
-  if (waterC <= UNDERTEMP_CUTOFF) { enterFault(F_UNDERTEMP); return; }
+  if (now - lastGoodRead > SENSOR_FAIL_MS) { setProg(P_OFF); enterFault(F_SENSOR); return; }
+  if (waterC >= OVERTEMP_CUTOFF)  { setProg(P_OFF); enterFault(F_OVERTEMP);  return; }
+  if (waterC <= UNDERTEMP_CUTOFF) { setProg(P_OFF); enterFault(F_UNDERTEMP); return; }
 
-  // Low battery: stop the run and refuse new ones until the battery recovers (not latched). Off unless ENABLE_LOW_BATT_CUTOFF.
+  // Low battery: stop and refuse COLD/HOT until the battery recovers (not latched). Off unless ENABLE_LOW_BATT_CUTOFF.
   if (!ENABLE_LOW_BATT_CUTOFF) { lowBatt = false; lowBattSince = 0; }
   else if (ENABLE_BATTERY_SENSE && !isnan(battV) && battV < BATT_PRESENT_V) { lowBatt = false; lowBattSince = 0; }
   else if (ENABLE_BATTERY_SENSE && !isnan(battV)) {
@@ -390,29 +423,36 @@ void control() {
     }
   }
   if (lowBatt) {
-    if (newRun) pressInfo("blocked: LOW BATT (battery below 9.9 V, charge it)");
-    runDir = IDLE; newRun = false; reached = false;
+    if (req > P_OFF) pressInfo("blocked: LOW BATT (battery below 9.9 V, charge it)");
+    if (prog != P_OFF) setProg(P_OFF);
+    req = -1;
   }
-  // Charging: ThermoX must not be used. Stop any run and refuse new ones until the charger is unplugged.
+  // Charging: ThermoX must not be used. Stop and refuse COLD/HOT until the charger is unplugged.
   if (charging) {
-    if (newRun) pressInfo("blocked: CHARGING (charger detect pin GPIO19 reads HIGH)");
-    runDir = IDLE; newRun = false; reached = false;
+    if (req > P_OFF) pressInfo("blocked: CHARGING (charger detect pin GPIO19 reads HIGH)");
+    if (prog != P_OFF) setProg(P_OFF);
+    req = -1;
+  }
+  if (req >= 0) {
+    setProg((Prog)req);
+    pressInfo(req == P_COLD ? "COLD program" : req == P_HOT ? "HOT program" : "OFF");
   }
 
-  // One run per button press. The direction is chosen when the press is handled; the run then
-  // goes at full power until the water crosses the target. After that nothing restarts by itself,
-  // however far the temperature drifts, until the next press.
-  if (newRun && !isnan(waterC)) {
-    newRun = false; reached = false;
-    if (waterC < targetC - START_BAND_C)      runDir = HEAT;
-    else if (waterC > targetC + START_BAND_C) runDir = COOL;
-    else { runDir = IDLE; reached = true; }        // already at the target
-    pressInfo(runDir == HEAT ? "start HEATING" : runDir == COOL ? "start COOLING"
-              : "nothing to do: the water is already within 0.5 C of the target");
-  } else if ((runDir == HEAT && waterC >= targetC) || (runDir == COOL && waterC <= targetC)) {
-    runDir = IDLE; reached = true;
+  // Thermostat. First pull to the target (approach), then hold it: the Peltier runs again at HOLD_POWER_PCT
+  // when the water drifts HOLD_BAND_C away from the target, and stops when it is back at the target.
+  Mode want = IDLE;
+  float tg = progTarget();
+  if (prog == P_COLD && !isnan(waterC)) {
+    if (approach) { if (waterC <= tg) { approach = false; reached = true; } }
+    else if (holdOn) { if (waterC <= tg) holdOn = false; }
+    else if (waterC >= tg + HOLD_BAND_C) holdOn = true;
+    if (approach || holdOn) want = COOL;
+  } else if (prog == P_HOT && !isnan(waterC)) {
+    if (approach) { if (waterC >= tg) { approach = false; reached = true; } }
+    else if (holdOn) { if (waterC >= tg) holdOn = false; }
+    else if (waterC <= tg - HOLD_BAND_C) holdOn = true;
+    if (approach || holdOn) want = HEAT;
   }
-  Mode want = runDir;
 
   // Never flip hot <-> cold quickly: after driving one way the Peltier stays OFF until
   // REVERSE_COOLDOWN_MS has passed since it last ran, then it may start the other way.
@@ -426,14 +466,16 @@ void control() {
 
   if (mode == IDLE) {
     tecStop();
-    setFan(fanDutyFor(IDLE, (now - lastTecActive < FAN_RUNON_MS) ? FAN_PCT_TO_DUTY(FAN_RUNON_PCT) : 0));
+    bool runOn = lastDriven == COOL && now - lastTecActive < FAN_RUNON_MS;
+    setFan(fanDutyFor(IDLE, runOn ? FAN_PCT_TO_DUTY(FAN_RUNON_PCT) : 0));
   } else {
-    tecDrive(mode, (uint8_t)((TEC_MAX_DUTY * tecPowerPct + 50) / 100));
-    setFan(fanDutyFor(mode, FAN_PCT_TO_DUTY(mode == COOL ? FAN_AUTO_COOL_PCT : FAN_AUTO_HEAT_PCT)));
+    uint8_t pct = approach ? tecPowerPct : min(HOLD_POWER_PCT, tecPowerPct);
+    tecDrive(mode, (uint8_t)((TEC_MAX_DUTY * pct + 50) / 100));
+    setFan(fanDutyFor(mode, FAN_PCT_TO_DUTY(mode == COOL ? FAN_AUTO_COOL_PCT : FAN_HEAT_PCT)));
     lastTecActive = now; lastDriven = mode;
   }
 
-  // Fan stall protection: TEC without airflow overheats its heat sink
+  // Fan stall protection (only with the FG wire): TEC without airflow overheats its heat sink
   if (fanDuty > 0) {
     if (fanOnSince == 0) fanOnSince = now;
     if (ENABLE_FAN_TACH && now - fanOnSince > FAN_STALL_GRACE_MS && fanRpm < FAN_MIN_RPM && mode != IDLE)
@@ -444,7 +486,7 @@ void control() {
 // ---------------- Display ----------------
 void drawBattery(int x, int y) {
   oled.drawFrame(x, y, 22, 10); oled.drawBox(x + 22, y + 3, 2, 4);
-  if (battPct >= 0) oled.drawBox(x + 2, y + 2, (18 * battPct) / 100, 6);
+  if (battRestPct >= 0) oled.drawBox(x + 2, y + 2, (18 * battRestPct) / 100, 6);
   else { oled.setFont(u8g2_font_5x7_tr); oled.drawStr(x + 8, y + 8, "?"); }
 }
 
@@ -488,8 +530,11 @@ void drawUI() {
   if (charging) { drawCharging(b, sizeof b); oled.sendBuffer(); return; }
   oled.setFont(u8g2_font_6x12_tr);
   oled.drawStr(2, 12, oledTitle);
-  if (battPct >= 0) { snprintf(b, sizeof b, "%d%%", battPct); oled.drawStr(97 - (int)strlen(b) * 6, 12, b); }
-  drawBattery(100, 3);
+  if (tecDuty > 0) oled.drawStr(84, 12, "RUNNING");   // battery % hidden while the Peltier pulls the pack down
+  else {
+    if (battRestPct >= 0) { snprintf(b, sizeof b, "%d%%", battRestPct); oled.drawStr(97 - (int)strlen(b) * 6, 12, b); }
+    drawBattery(100, 3);
+  }
   oled.drawHLine(0, 17, 128);
 
   oled.setFont(u8g2_font_logisoso32_tn);
@@ -498,7 +543,9 @@ void drawUI() {
   oled.setFont(u8g2_font_9x15_tr); oled.drawStr(100, 62, "C");
 
   oled.setFont(u8g2_font_9x15_tr);
-  snprintf(b, sizeof b, "Set: %.0f C", targetC); oled.drawStr(8, 84, b);
+  if (prog == P_OFF) snprintf(b, sizeof b, "OFF");
+  else snprintf(b, sizeof b, "%s %.0f C", prog == P_COLD ? "COLD" : "HOT", progTarget());
+  oled.drawStr(8, 84, b);
   if (mode == FAULT) {
     oled.drawStr(8, 102, FAULT_TXT[fault]);
     oled.setFont(u8g2_font_5x7_tr);
@@ -508,8 +555,9 @@ void drawUI() {
   }
   else if (lowBatt) oled.drawStr(8, 102, "LOW BATT");
   else if (waitLeftS) { snprintf(b, sizeof b, "WAIT %us", waitLeftS); oled.drawStr(8, 102, b); }
-  else if (mode == IDLE) oled.drawStr(8, 102, reached ? "REACHED" : "READY");
-  else oled.drawStr(8, 102, MODE_TXT[mode]);
+  else if (prog == P_OFF) oled.drawStr(8, 102, "PRESS COLD/HOT");
+  else if (mode != IDLE) oled.drawStr(8, 102, approach ? MODE_TXT[mode] : "HOLDING");
+  else oled.drawStr(8, 102, reached ? "AT TARGET" : "READY");
 
   oled.setFont(u8g2_font_6x12_tr);
   if (ENABLE_FAN_TACH) snprintf(b, sizeof b, "Fan %u rpm", fanRpm);
@@ -531,7 +579,7 @@ void logData() {
   if (isnan(waterC)) return;                     // no valid reading yet
   char line[128];
   int n = snprintf(line, sizeof line, "TEMP=%.2f,TARGET=%.1f,MODE=%s,PELTIER=%d,FAN=%d",
-                   waterC, targetC, MODE_TXT[mode], tecDuty > 0, fanDuty > 0);
+                   waterC, progTarget(), MODE_TXT[mode], tecDuty > 0, fanDuty > 0);
   if (ENABLE_BATTERY_SENSE && !isnan(battV))
     snprintf(line + n, sizeof line - n, ",BATTERY=%.2f", battV);
   Serial.println(line);                          // same line on USB serial
@@ -564,14 +612,14 @@ void statusJson(char* b, size_t n) {
   char t[12] = "null", bv[12] = "null";
   float w = waterC;
   if (!isnan(w)) snprintf(t, sizeof t, "%.2f", w);
-  if (!isnan(battV)) snprintf(bv, sizeof bv, "%.2f", battV);
+  if (!isnan(battRestV)) snprintf(bv, sizeof bv, "%.2f", battRestV);
   snprintf(b, n,
-    "{\"t\":%s,\"tg\":%.0f,\"tmin\":%.0f,\"tmax\":%.0f,\"m\":\"%s\",\"f\":\"%s\",\"r\":%d,\"w\":%u,"
+    "{\"t\":%s,\"tg\":%.0f,\"p\":\"%s\",\"ap\":%d,\"tc\":%.0f,\"th\":%.0f,\"m\":\"%s\",\"f\":\"%s\",\"r\":%d,\"w\":%u,"
     "\"pel\":%u,\"fan\":%u,\"rpm\":%u,\"fc\":\"%s\",\"fp\":%u,\"fmin\":%u,\"bat\":%d,\"bv\":%s,\"lb\":%d,\"chg\":%d,\"cp\":%d,\"chf\":%d,\"pw\":%u,\"up\":%lu,\"ev\":%u,"
     "\"fmax\":%u,\"fauto\":%u,\"ob\":%u,\"or\":%u,\"os\":%d,\"ot\":\"%s\"}",
-    t, targetC, TARGET_MIN, TARGET_MAX, MODE_TXT[mode], FAULT_TXT[fault], reached ? 1 : 0, (unsigned)waitLeftS,
+    t, progTarget(), PROG_TXT[prog], approach ? 1 : 0, coldTargetC, hotTargetC, MODE_TXT[mode], FAULT_TXT[fault], reached ? 1 : 0, (unsigned)waitLeftS,
     tecDuty * 100U / 255, fanDuty * 100U / 255, (unsigned)fanRpm, fanCtl == FAN_AUTO ? "auto" : "manual",
-    (unsigned)fanManualPct, (unsigned)fanFloorPct, battPct, bv, lowBatt ? 1 : 0, charging ? 1 : 0, chgPct, chargeFull ? 1 : 0, (unsigned)tecPowerPct, (unsigned long)millis(), (unsigned)evTotal,
+    (unsigned)fanManualPct, (unsigned)fanFloorPct, battRestPct, bv, lowBatt ? 1 : 0, charging ? 1 : 0, chgPct, chargeFull ? 1 : 0, (unsigned)tecPowerPct, (unsigned long)millis(), (unsigned)evTotal,
     (unsigned)FAN_MAX_PCT, (unsigned)FAN_AUTO_COOL_PCT, (unsigned)oledBright, (unsigned)oledRot, oledOn ? 1 : 0, oledTitle);
 }
 
@@ -640,11 +688,12 @@ void bleBegin() {
 }
 
 // Commands from the phone (one short text per write):
-//   T<20-50>   set the target and start a run (same as a button press)
-//   S          start a run toward the current target
-//   X          stop the run (Peltier off)
+//   C          COLD program (same as the blue button when OFF)
+//   H          HOT program
+//   X          OFF (Peltier and fan off)
+//   TC<10-30>  COLD target, C (saved)        TH<35-52>  HOT target, C (saved)
 //   FA         fan AUTO (the normal behaviour)
-//   FM<0-100>  fan MANUAL at this %, never below FAN_MIN_PCT_* while the Peltier runs, never above FAN_MAX_PCT
+//   FM<0-100>  fan MANUAL at this % while cooling, never below FAN_MIN_PCT_COOL (the fan is off while heating)
 //   P<30-100>  Peltier power limit, % (saved)
 //   OB<0-100>  OLED brightness, % (saved)
 //   OR<0-3>    OLED orientation: 0 portrait, 1 landscape, 2 portrait upside down, 3 landscape the other way (saved)
@@ -660,18 +709,25 @@ void handlePhone() {
     char* end = nullptr;
     long v = 0;
     char c0 = toupper((unsigned char)s[0]), c1 = c0 ? toupper((unsigned char)s[1]) : 0;
-    if (c0 == 'T' && (v = strtol(s + 1, &end, 10), end != s + 1 && *end == '\0') &&
-        v >= (long)TARGET_MIN && v <= (long)TARGET_MAX) {
-      targetC = v; newRun = true;
-    } else if (c0 == 'S' && c1 == '\0') {
-      newRun = true; logEvent(charging ? "Charging: unplug first" : "Phone: start");
+    if (c0 == 'C' && c1 == '\0') {
+      progReq = P_COLD; logEvent(charging ? "Charging: unplug first" : "Phone: COLD");
+    } else if (c0 == 'H' && c1 == '\0') {
+      progReq = P_HOT; logEvent(charging ? "Charging: unplug first" : "Phone: HOT");
     } else if (c0 == 'X' && c1 == '\0') {
-      runDir = IDLE; newRun = false; reached = false; logEvent("Phone: stop");
+      progReq = P_OFF; logEvent("Phone: OFF");
+    } else if (c0 == 'T' && c1 == 'C' && (v = strtol(s + 2, &end, 10), end != s + 2 && *end == '\0') &&
+               v >= (long)COLD_TARGET_MIN && v <= (long)COLD_TARGET_MAX) {
+      coldTargetC = v; prefs.putFloat("tcold", coldTargetC); logEvent("Phone: COLD target %ld C", v);
+      if (prog == P_COLD) setProg(P_COLD);       // new target: pull to it again
+    } else if (c0 == 'T' && c1 == 'H' && (v = strtol(s + 2, &end, 10), end != s + 2 && *end == '\0') &&
+               v >= (long)HOT_TARGET_MIN && v <= (long)HOT_TARGET_MAX) {
+      hotTargetC = v; prefs.putFloat("thot", hotTargetC); logEvent("Phone: HOT target %ld C", v);
+      if (prog == P_HOT) setProg(P_HOT);
     } else if (c0 == 'F' && c1 == 'A' && s[2] == '\0') {
       fanCtl = FAN_AUTO; logEvent("Phone: fan AUTO");
     } else if (c0 == 'F' && c1 == 'M' && (v = strtol(s + 2, &end, 10), end != s + 2 && *end == '\0') &&
                v >= 0 && v <= 100) {
-      fanCtl = FAN_MANUAL; fanManualPct = v; logEvent("Phone: fan %ld%%", v);
+      fanCtl = FAN_MANUAL; fanManualPct = max((long)FAN_MIN_PCT_COOL, v); logEvent("Phone: fan %u%%", (unsigned)fanManualPct);
     } else if (c0 == 'O' && c1 == 'B' && (v = strtol(s + 2, &end, 10), end != s + 2 && *end == '\0') &&
                v >= 0 && v <= 100) {
       oledBright = v; prefs.putUChar("obr", oledBright); oledApply(); logEvent("Phone: OLED %ld%%", v);
@@ -696,20 +752,22 @@ void handlePhone() {
 // Adds an event when the run state changes, whoever caused it (buttons, phone or the control loop).
 void trackEvents() {
   static Mode lastMode = IDLE;
+  static Prog lastProg = P_OFF;
   static bool lastReached = false, lastWait = false;
-  static float lastTarget = TARGET_DEFAULT, loggedTarget = TARGET_DEFAULT;
-  static uint32_t targetSince = 0;
-  uint32_t now = millis();
+  if (prog != lastProg) {
+    if (prog == P_COLD)     logEvent("COLD to %.0f C", coldTargetC);
+    else if (prog == P_HOT) logEvent("HOT to %.0f C", hotTargetC);
+    else                    logEvent("OFF");
+    lastProg = prog;
+  }
   if (mode != lastMode) {
-    if (mode == HEAT)       { logEvent("Heating to %.0f C", targetC); loggedTarget = targetC; }
-    else if (mode == COOL)  { logEvent("Cooling to %.0f C", targetC); loggedTarget = targetC; }
-    else if (mode == FAULT) logEvent("FAULT: %s", FAULT_TXT[fault]);
+    if (mode == FAULT) logEvent("FAULT: %s", FAULT_TXT[fault]);
     lastMode = mode;
   }
   bool waiting = waitLeftS > 0;
   if (waiting && !lastWait) logEvent("Wait %us before reversing", (unsigned)waitLeftS);
   lastWait = waiting;
-  if (reached && !lastReached) logEvent("Reached %.1f C", waterC);
+  if (reached && !lastReached) logEvent("Reached %.1f C, holding", waterC);
   lastReached = reached;
   static bool lastLow = false;
   if (lowBatt != lastLow) { logEvent(lowBatt ? "LOW BATTERY: Peltier off" : "Battery OK again"); lastLow = lowBatt; }
@@ -718,18 +776,6 @@ void trackEvents() {
   static bool lastFull = false;
   if (chargeFull && !lastFull) logEvent("Battery full");
   lastFull = chargeFull;
-  // A held button changes the target every 150 ms: log it once it has been steady for 1.5 s.
-  if (targetC != lastTarget) { lastTarget = targetC; targetSince = now; }
-  else if (targetC != loggedTarget && now - targetSince > 1500) { loggedTarget = targetC; logEvent("Target %.0f C", targetC); }
-}
-
-// Saves the target once it has been steady for 3 s (a held button would otherwise write flash often).
-void saveTarget() {
-  static float saved = NAN, last = NAN;
-  static uint32_t since = 0;
-  if (isnan(saved)) saved = last = targetC;
-  if (targetC != last) { last = targetC; since = millis(); }
-  else if (targetC != saved && millis() - since > 3000) { prefs.putFloat("target", targetC); saved = targetC; }
 }
 
 // Tells the phone to refresh: every BLE_PING_MS, and right after a phone command.
@@ -758,8 +804,9 @@ void setup() {
   tecStop(); setFan(0);
   Serial.begin(115200);
   logEvent("Power on");
-  prefs.begin("thermox", false);                 // saved target and power limit (no run starts)
-  targetC = constrain(prefs.getFloat("target", TARGET_DEFAULT), TARGET_MIN, TARGET_MAX);
+  prefs.begin("thermox", false);                 // saved targets, power limit and OLED settings (starts OFF)
+  coldTargetC = constrain(prefs.getFloat("tcold", COLD_TARGET_DEFAULT), COLD_TARGET_MIN, COLD_TARGET_MAX);
+  hotTargetC = constrain(prefs.getFloat("thot", HOT_TARGET_DEFAULT), HOT_TARGET_MIN, HOT_TARGET_MAX);
   tecPowerPct = constrain(prefs.getUChar("power", 100), POWER_MIN_PCT, (uint8_t)100);
   oledRot = prefs.getUChar("orot", OLED_ROT_DEFAULT) & 3;
   oledBright = min(prefs.getUChar("obr", OLED_BRIGHT_DEFAULT), (uint8_t)100);
@@ -791,7 +838,6 @@ void loop() {
   handlePhone();
   control();
   trackEvents();
-  saveTarget();
   drawUI();
   logData();
   debugLine();
